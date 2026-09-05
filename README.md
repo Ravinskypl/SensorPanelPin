@@ -57,11 +57,26 @@ dotnet build src/SensorPanelGlue/SensorPanelGlue.csproj -c Release
 
 Plik wykonywalny: `src/SensorPanelGlue/bin/Release/net8.0-windows/win-x64/SensorPanelGlue.exe`
 
-Jeden plik bez zależności od zainstalowanego runtime'u:
+### Jeden plik, bez zależności od zainstalowanego runtime'u
 
 ```bash
-dotnet publish src/SensorPanelGlue/SensorPanelGlue.csproj -c Release -p:PublishSingleFile=true -p:SelfContained=true -o publish
+dotnet publish src/SensorPanelGlue/SensorPanelGlue.csproj -c Release -p:PublishSingleFile=true -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
 ```
+
+Efekt: `publish/SensorPanelGlue.exe`, **62,8 MB**, jeden plik, nic obok. Uruchamia się na maszynie
+bez zainstalowanego .NET.
+
+Bez `EnableCompressionInSingleFile` plik ma 138,4 MB i startuje odrobinę szybciej — cały runtime
+leży w nim nieskompresowany. `DebugType=none` pomija plik `.pdb`, niepotrzebny do działania.
+Bez `IncludeNativeLibrariesForSelfExtract` biblioteki natywne lądują obok pliku wykonywalnego, co
+przeczy sensowi tej operacji.
+
+Wersja zwykła (`dotnet build`) to 160 KB plus zainstalowany .NET 8 Desktop Runtime — sensowna, gdy
+program zostaje na tej samej maszynie, na której go budujesz.
+
+Sprawdzone na wersji jednoplikowej: manifest przeżywa spakowanie (proces raportuje
+`PER_MONITOR_AWARE_V2`), ikona i zasób `app.ico` działają, hooki i przenoszenie okien działają
+(194 ms), pierwszy wpis w logu 1,4 s po starcie procesu.
 
 ### Pierwsze uruchomienie
 
