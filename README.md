@@ -112,6 +112,11 @@ Dlatego są trzy tryby, do wyboru w **Zaawansowane → Uruchamianie razem z Wind
 | **Rejestr (HKCU\\...\\Run)** | Klasyczny autostart, bez uprawnień |
 | **Harmonogram zadań** | Zadanie `SensorPanelGlue` z `RunLevel = HighestAvailable`, wyzwalacz przy logowaniu z opóźnieniem 15 s (żeby AIDA64 zdążyła wstać). Startuje z uprawnieniami **bez monitu UAC przy każdym logowaniu** — UAC pojawia się tylko raz, przy tworzeniu zadania |
 
+Sama AIDA64 uruchamia się identycznie — zadaniem `\AIDA64 AutoStart` — i z tego samego powodu:
+program, który potrzebuje uprawnień, nie da się sensownie wystartować z klucza `Run`. Opóźnienie
+15 s wystarcza, żeby panel istniał, zanim SensorPanelGlue zacznie go szukać; gdyby AIDA64 startowała
+wolniej, aplikacja i tak poczeka i złapie okno, gdy się pojawi.
+
 Tryby wykluczają się wzajemnie — wybranie jednego usuwa drugi. Aplikacja nie tworzy niczego z
 własnej inicjatywy; zmiana następuje wyłącznie po wybraniu trybu w interfejsie.
 
@@ -226,6 +231,7 @@ eM713A 1024×600 @ 3440,0 (ekran panelu), AIDA64 Extreme v8.35.8400.
 | Okno konfiguracji | wszystkie 4 zakładki konstruują się i renderują, układ sprawdzony na zrzutach |
 | XML zadania Harmonogramu | `RunLevel=HighestAvailable`, `LogonType=InteractiveToken`, poprawny UserId i ścieżka; `schtasks` przyjął plik i odrzucił dopiero na braku uprawnień |
 | Odczyt bieżącego trybu autostartu | 54 ms, bez blokowania interfejsu |
+| Pełny restart Windows | zadanie wystartowało aplikację 37 s po boocie, z uprawnieniami; panel bez żadnej ingerencji znalazł się na eM713A |
 | Zużycie CPU w spoczynku (90 s) | 109 ms CPU → **0,12% jednego rdzenia**, 0,008% całego CPU (16 rdzeni) |
 | Pamięć w spoczynku | 69 MB working set / 28 MB prywatnej |
 
