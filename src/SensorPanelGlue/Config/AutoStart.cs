@@ -28,8 +28,28 @@ public static class AutoStart
 {
     public const string TaskName = "SensorPanelGlue";
 
+    private const string ExecutableName = "SensorPanelGlue.exe";
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string ValueName = "SensorPanelGlue";
+
+    /// <summary>
+    /// The path to register for autostart. Environment.ProcessPath alone is not enough: under
+    /// `dotnet SensorPanelGlue.dll` it is dotnet.exe, and under a test host it is the host — either
+    /// way the registered entry would silently start the wrong program at logon. Returns null
+    /// rather than guessing, so the caller can refuse the change instead of writing a bad entry.
+    /// </summary>
+    private static string? ResolveExecutablePath()
+    {
+        var processPath = Environment.ProcessPath;
+        if (!string.IsNullOrEmpty(processPath)
+            && string.Equals(Path.GetFileName(processPath), ExecutableName, StringComparison.OrdinalIgnoreCase))
+        {
+            return processPath;
+        }
+
+        var beside = Path.Combine(AppContext.BaseDirectory, ExecutableName);
+        return File.Exists(beside) ? beside : null;
+    }
 
     public static AutoStartMode GetCurrentMode()
     {
@@ -57,11 +77,12 @@ public static class AutoStart
     {
         message = string.Empty;
 
-        var exe = Environment.ProcessPath;
-        if (string.IsNullOrEmpty(exe))
+        var exe = ResolveExecutablePath();
+        if (exe is null)
         {
-            message = "Nie udało się ustalić ścieżki pliku wykonywalnego.";
-            log.Error(message);
+            message = $"Nie udało się ustalić ścieżki do {ExecutableName}. "
+                      + "Autostart nie został zmieniony, żeby nie zarejestrować błędnego wpisu.";
+            log.Error(message + " ProcessPath=" + (Environment.ProcessPath ?? "(brak)"));
             return false;
         }
 

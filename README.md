@@ -115,6 +115,11 @@ Dlatego są trzy tryby, do wyboru w **Zaawansowane → Uruchamianie razem z Wind
 Tryby wykluczają się wzajemnie — wybranie jednego usuwa drugi. Aplikacja nie tworzy niczego z
 własnej inicjatywy; zmiana następuje wyłącznie po wybraniu trybu w interfejsie.
 
+Wpis zapamiętuje **bieżącą ścieżkę pliku wykonywalnego**. Przebudowanie w to samo miejsce niczego nie
+psuje, ale po przeniesieniu programu (np. `dotnet publish` do innego katalogu) ustaw tryb ponownie.
+Rejestrowana jest ścieżka do `SensorPanelGlue.exe`, nie do procesu-hosta — przy uruchomieniu przez
+`dotnet SensorPanelGlue.dll` aplikacja odmówi zapisu zamiast zarejestrować `dotnet.exe`.
+
 Przenoszenie okien *innych* aplikacji działa bez elewacji, o ile te aplikacje same nie są
 uruchomione jako administrator.
 
