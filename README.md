@@ -272,6 +272,7 @@ ilustracja tego, dlaczego elewacja ma tu znaczenie.
 src/SensorPanelGlue/
   Program.cs                  single instance, logger, obsługa wyjątków, pętla aplikacji
   app.manifest                PerMonitorV2 DPI, asInvoker
+  app.ico                     ikona programu (16-256 px), generowana z UI/IconArtwork.cs
   Interop/                    P/Invoke: user32, shcore, dwmapi, kernel32, CCD (QueryDisplayConfig)
   Monitors/                   MonitorRegistry — stabilne ID monitorów, mapowanie prostokątów
   Windows/                    odczyt okien, filtr, przesuwanie, anty-ping-pong, wildcardy
@@ -280,3 +281,10 @@ src/SensorPanelGlue/
   Diagnostics/                log rotacyjny z throttlingiem
   UI/                         ikona zasobnika, okno konfiguracji, overlay „Identyfikuj"
 ```
+
+Ikona jest zdefiniowana raz, w `UI/IconArtwork.cs`, jako rysunek proporcjonalny do rozmiaru.
+`app.ico` (16, 20, 24, 32, 40, 48, 64, 128, 256 px) jest z niego wygenerowany i wchodzi do projektu
+dwa razy: jako `ApplicationIcon` pliku wykonywalnego i jako zasób osadzony, z którego program
+pobiera ikonę okien (32 px) oraz zasobnika w rozmiarze żądanym przez powłokę. Wariant wstrzymany —
+ten sam znak w szarości — rysowany jest w locie, bo występuje wyłącznie w zasobniku. Po zmianie
+rysunku trzeba wygenerować `app.ico` ponownie.

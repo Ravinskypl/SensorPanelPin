@@ -11,6 +11,7 @@
     <AssemblyName>SensorPanelGlue</AssemblyName>
     <RootNamespace>SensorPanelGlue</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <!--
       DPI awareness is declared in app.manifest (PerMonitorV2). The OS applies it before any managed
       code runs, which is what a tool that measures other windows needs; Application.SetHighDpiMode
@@ -29,5 +30,11 @@
     <Version>1.0.0</Version>
     <Product>SensorPanelGlue</Product>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Same file twice on purpose: as the shell icon of the executable, and as a resource so the
+         tray and window icons come from one mark instead of a second, drifting definition. -->
+    <EmbeddedResource Include="app.ico" LogicalName="SensorPanelGlue.app.ico" />
+  </ItemGroup>
 
 </Project>

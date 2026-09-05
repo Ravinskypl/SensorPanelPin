@@ -62,7 +62,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         _tray = new NotifyIcon
         {
-            Icon = AppIcon.Normal,
+            Icon = AppIcon.Tray,
             Text = "SensorPanelGlue",
             Visible = true,
             ContextMenuStrip = menu,
@@ -176,7 +176,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         _pauseItem.Text = _service.IsPaused ? "Wznów" : "Wstrzymaj";
         _statusItem.Text = status.ShortText + " — " + status.Message;
-        _tray.Icon = _service.IsPaused ? AppIcon.Paused : AppIcon.Normal;
+        _tray.Icon = _service.IsPaused ? AppIcon.TrayPaused : AppIcon.Tray;
 
         if (status.State == ServiceState.ElevationRequired && !_elevationBalloonShown)
         {

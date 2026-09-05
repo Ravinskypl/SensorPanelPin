@@ -1,56 +1,71 @@
 using System.Drawing;
-using System.Drawing.Drawing2D;
+using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Windows.Forms;
 
 namespace SensorPanelGlue.UI;
 
 /// <summary>
-/// The tray icon is drawn at runtime so the project stays a pure source tree with no binary assets.
+/// Icons used at runtime. The normal states come from the same app.ico that is embedded in the
+/// executable, so the shell icon, the title bar and the tray icon are one mark; the paused variant
+/// is rendered from <see cref="IconArtwork"/> because it exists only in the tray.
 /// </summary>
 public static class AppIcon
 {
+    private const string ResourceName = "SensorPanelGlue.app.ico";
+
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool DestroyIcon(IntPtr hIcon);
 
-    private static Icon? _normal;
-    private static Icon? _paused;
+    private static Icon? _window;
+    private static Icon? _tray;
+    private static Icon? _trayPaused;
 
-    public static Icon Normal => _normal ??= Build(Color.FromArgb(64, 224, 132));
+    /// <summary>Icon for windows: title bar, Alt+Tab, taskbar.</summary>
+    public static Icon Normal => _window ??= LoadEmbedded(32) ?? FromArtwork(32, IconArtwork.ActiveAccent);
 
-    public static Icon Paused => _paused ??= Build(Color.FromArgb(160, 160, 160));
+    /// <summary>Tray icon at the size the shell actually asks for, so it stays crisp at any DPI.</summary>
+    public static Icon Tray => _tray ??= LoadEmbedded(TraySize) ?? FromArtwork(TraySize, IconArtwork.ActiveAccent);
 
-    private static Icon Build(Color accent)
+    public static Icon TrayPaused => _trayPaused ??= FromArtwork(TraySize, IconArtwork.PausedAccent);
+
+    /// <summary>Kept for call sites that only distinguish running from paused.</summary>
+    public static Icon Paused => TrayPaused;
+
+    private static int TraySize
     {
-        using var bitmap = new Bitmap(32, 32);
-        using (var g = Graphics.FromImage(bitmap))
+        get
         {
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.Clear(Color.Transparent);
-
-            // Screen body.
-            using var body = new SolidBrush(Color.FromArgb(32, 36, 44));
-            using var frame = new Pen(Color.FromArgb(96, 104, 120), 2f);
-            var screen = new Rectangle(3, 5, 26, 18);
-            g.FillRectangle(body, screen);
-            g.DrawRectangle(frame, screen);
-
-            // Stand.
-            using var stand = new SolidBrush(Color.FromArgb(96, 104, 120));
-            g.FillRectangle(stand, 13, 23, 6, 3);
-            g.FillRectangle(stand, 9, 26, 14, 3);
-
-            // Sensor bars.
-            using var bar = new SolidBrush(accent);
-            g.FillRectangle(bar, 6, 17, 4, 4);
-            g.FillRectangle(bar, 12, 13, 4, 8);
-            g.FillRectangle(bar, 18, 9, 4, 12);
-            g.FillRectangle(bar, 24, 15, 3, 6);
+            var size = SystemInformation.SmallIconSize.Width;
+            return size > 0 ? size : 16;
         }
+    }
 
+    private static Icon? LoadEmbedded(int size)
+    {
+        try
+        {
+            using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(ResourceName);
+            if (stream is null)
+            {
+                return null;
+            }
+
+            // This overload picks the closest available frame from the multi-size .ico.
+            return new Icon(stream, new Size(size, size));
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    private static Icon FromArtwork(int size, Color accent)
+    {
+        using var bitmap = IconArtwork.Render(size, accent);
         var handle = bitmap.GetHicon();
         try
         {
-            // Clone so the icon survives destroying the temporary GDI handle.
             using var temp = Icon.FromHandle(handle);
             return (Icon)temp.Clone();
         }
