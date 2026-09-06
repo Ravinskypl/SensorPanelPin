@@ -178,6 +178,18 @@ Kilka decyzji, które mają znaczenie:
 * **Brak kradzieży fokusu.** Wszystkie przesunięcia używają `SWP_NOACTIVATE`. Okna zmaksymalizowane
   przenoszone są przez `SetWindowPlacement` — translacja `rcNormalPosition` o deltę i ponowna
   maksymalizacja na nowym monitorze, bez aktywacji okna.
+* **Nieufność wobec współrzędnych w trakcie zmiany układu.** Monitor wyłączony przyciskiem bywa
+  nadal enumerowany przez Windows, ale z fałszywą pozycją — potrafi zostać zgłoszony w punkcie
+  (0,0), nachodząc na ekran główny. Wyliczenie pozycji panelu z takiego odczytu wyrzuca go na
+  niewłaściwy ekran. Aplikacja pilnuje więc dwóch rzeczy: układ, w którym prostokąty monitorów
+  częściowo na siebie nachodzą (klony, mające identyczne prostokąty, są w porządku), jest uznawany
+  za przejściowy i nic się wtedy nie dzieje; a każde wyliczone miejsce docelowe panelu musi
+  faktycznie leżeć na monitorze docelowym — inaczej przeniesienie jest odrzucane i zapisane w logu
+  z konkretnymi liczbami. Ta sama blokada obowiązuje przy przenoszeniu obcych okien.
+* **Puls w logu.** Co 5 minut leci wpis ze stanem (liczba monitorów, spójność, prostokąt ekranu
+  docelowego, pozycja panelu). Bez tego log milczy, gdy nic nie wymaga poprawki, i po fakcie nie da
+  się odróżnić spokoju od zatrzymanej pętli. Zmiany układu ekranów są logowane z pełnymi
+  współrzędnymi każdego monitora.
 * **Anty-ping-pong.** Jeśli to samo okno wraca na zakazany ekran mimo 3 przeniesień w ciągu 10 s,
   aplikacja odpuszcza je do końca sesji, loguje to raz i pokazuje w oknie konfiguracji
   (zakładka *Inne okna*). Analogiczny bezpiecznik chroni przed walką z samą AIDA64: po 12 korektach
@@ -247,6 +259,7 @@ eM713A 1024×600 @ 3440,0 (ekran panelu), AIDA64 Extreme v8.35.8400.
 | XML zadania Harmonogramu | `RunLevel=HighestAvailable`, `LogonType=InteractiveToken`, poprawny UserId i ścieżka; `schtasks` przyjął plik i odrzucił dopiero na braku uprawnień |
 | Odczyt bieżącego trybu autostartu | 54 ms, bez blokowania interfejsu |
 | Pełny restart Windows | zadanie wystartowało aplikację 37 s po boocie, z uprawnieniami; panel bez żadnej ingerencji znalazł się na eM713A |
+| Fałszywe współrzędne monitora (regresja z 06.09.2026) | układ z monitorem pomocniczym zgłoszonym w (0,0) rozpoznany jako przejściowy; miejsce docelowe `{-5,0}` odrzucone jako leżące na ekranie głównym; klony i normalny układ nadal przechodzą |
 | Zużycie CPU w spoczynku (90 s) | 109 ms CPU → **0,12% jednego rdzenia**, 0,008% całego CPU (16 rdzeni) |
 | Pamięć w spoczynku | 69 MB working set / 28 MB prywatnej |
 

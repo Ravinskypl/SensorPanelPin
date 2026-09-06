@@ -21,6 +21,14 @@ public sealed class MonitorRegistry
 
     public IReadOnlyList<MonitorInfo> Monitors => _monitors;
 
+    /// <summary>
+    /// False while Windows reports a layout that cannot be real. During a display transition -
+    /// a monitor powered off and back on, a mode change, a game switching resolution - the
+    /// enumeration can briefly place a monitor at the origin, overlapping another one. Acting on
+    /// those coordinates throws windows onto the wrong screen, so callers must wait instead.
+    /// </summary>
+    public bool LayoutIsConsistent { get; private set; } = true;
+
     public void Refresh()
     {
         var identities = ReadDisplayConfigIdentities();
@@ -80,7 +88,67 @@ public sealed class MonitorRegistry
             ? a.Bounds.X.CompareTo(b.Bounds.X)
             : a.Bounds.Y.CompareTo(b.Bounds.Y));
 
+        var previous = _monitors;
         _monitors = result;
+        LayoutIsConsistent = CheckConsistency(result);
+
+        LogIfChanged(previous, result);
+    }
+
+    private static bool CheckConsistency(IReadOnlyList<MonitorInfo> monitors)
+    {
+        if (monitors.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (var monitor in monitors)
+        {
+            if (monitor.Bounds.Width <= 0 || monitor.Bounds.Height <= 0)
+            {
+                return false;
+            }
+        }
+
+        for (var i = 0; i < monitors.Count; i++)
+        {
+            for (var j = i + 1; j < monitors.Count; j++)
+            {
+                var a = monitors[i].Bounds;
+                var b = monitors[j].Bounds;
+
+                // Cloned displays legitimately share one rectangle; a partial overlap cannot happen
+                // on a settled desktop and means the reading caught a transition mid-flight.
+                if (a != b && a.IntersectsWith(b))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Records every change of the monitor set. Display transitions are exactly the moments when
+    /// things go wrong, and without this the log cannot show what the layout looked like.
+    /// </summary>
+    private void LogIfChanged(IReadOnlyList<MonitorInfo> previous, IReadOnlyList<MonitorInfo> current)
+    {
+        static string Signature(IReadOnlyList<MonitorInfo> list) =>
+            string.Join(" | ", list.Select(m => $"{m.StableId}@{m.Bounds}{(m.IsPrimary ? "*" : string.Empty)}"));
+
+        if (Signature(previous) == Signature(current))
+        {
+            return;
+        }
+
+        _log.Info($"Układ ekranów: {current.Count} monitorów, spójny={LayoutIsConsistent}");
+        foreach (var monitor in current)
+        {
+            _log.Info($"  {monitor.FriendlyName} {monitor.Bounds} work={monitor.WorkArea} "
+                      + $"dpi={monitor.Dpi} primary={monitor.IsPrimary}");
+        }
     }
 
     public MonitorInfo? FindById(string? stableId)

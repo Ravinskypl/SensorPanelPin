@@ -21,6 +21,7 @@ public sealed class GlueService : IDisposable
     private const int PostMoveRecheckMs = 700;
     private const int PanelBackoffMoves = 12;
     private static readonly TimeSpan PanelBackoffDuration = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromMinutes(5);
 
     private readonly Logger _log;
     private readonly ConfigStore _store;
@@ -48,6 +49,7 @@ public sealed class GlueService : IDisposable
     private IntPtr _probedPanel = IntPtr.Zero;
     private int _panelMoveCount;
     private DateTime _panelMoveWindowStart = DateTime.UtcNow;
+    private DateTime _lastHeartbeat = DateTime.MinValue;
     private DateTime _panelBackoffUntil = DateTime.MinValue;
     private ServiceStatus _status = new(ServiceState.Stopped, "Nie uruchomiono.");
 
@@ -121,8 +123,8 @@ public sealed class GlueService : IDisposable
         _started = true;
         _paused = _config.StartPaused;
 
+        // MonitorRegistry logs the layout itself whenever it changes, including this first read.
         _monitors.Refresh();
-        LogMonitors();
 
         _systemEvents = new SystemEventWindow(_log, OnLayoutEvent);
         _listener = new WinEventListener(_log, OnWindowEvent);
@@ -385,11 +387,36 @@ public sealed class GlueService : IDisposable
 
             EnforcePanel();
             RelocateForeignWindows();
+            Heartbeat();
         }
         catch (Exception ex)
         {
             _log.Error("Błąd podczas wymuszania układu (" + reason + ").", ex);
         }
+    }
+
+    /// <summary>
+    /// Periodic proof of life. Without it the log falls silent whenever nothing needs correcting,
+    /// and an incident cannot be told apart from a stalled loop after the fact.
+    /// </summary>
+    private void Heartbeat()
+    {
+        var now = DateTime.UtcNow;
+        if (now - _lastHeartbeat < HeartbeatInterval)
+        {
+            return;
+        }
+
+        _lastHeartbeat = now;
+
+        var panel = _panelHwnd != IntPtr.Zero ? WindowQuery.Get(_panelHwnd) : null;
+        var target = _monitors.FindById(_config.PanelMonitorId);
+
+        _log.Info(
+            $"Puls: monitory={_monitors.Monitors.Count} spójny={_monitors.LayoutIsConsistent} "
+            + $"ekran docelowy={(target is null ? "brak" : target.Bounds.ToString())} "
+            + $"panel={(panel is null ? "nie znaleziony" : panel.Rect.ToString())} "
+            + $"stan={_status.ShortText}");
     }
 
     private void EnforcePanel()
@@ -442,9 +469,39 @@ public sealed class GlueService : IDisposable
             }
         }
 
+        if (!_monitors.LayoutIsConsistent)
+        {
+            // Windows is mid-transition and the coordinates cannot be trusted; the next sweep
+            // will act on a settled layout.
+            _log.Throttled("layout-unstable", TimeSpan.FromMinutes(1), LogLevel.Warn,
+                "Układ ekranów jest w trakcie zmiany (monitory nachodzą na siebie) — "
+                + "nie ruszam panelu do czasu ustabilizowania.");
+            UpdateStatus(ServiceState.WaitingForMonitor, "Układ ekranów się zmienia.");
+            return;
+        }
+
+        _log.ResetThrottle("layout-unstable");
+
         ApplyPanelStyles(panel);
 
         var desired = ComputePanelTarget(panel, target);
+
+        // Hard invariant: the panel must never be sent anywhere but its own monitor. A powered-off
+        // display can still be enumerated while reporting bogus bounds at the origin, and without
+        // this check the stored offset lands the panel on the main screen - on top of whatever is
+        // running there.
+        var landing = _monitors.FromRect(desired);
+        if (landing is null || landing.StableId != target.StableId)
+        {
+            _log.Throttled("bad-destination", TimeSpan.FromMinutes(1), LogLevel.Warn,
+                $"Odrzucam przeniesienie panelu do {desired}: to miejsce leży na "
+                + $"„{landing?.FriendlyName ?? "nieznanym ekranie"}”, a nie na „{target.FriendlyName}” "
+                + $"({target.Bounds}). Prawdopodobnie Windows raportuje monitor w trakcie zmiany.");
+            UpdateStatus(ServiceState.WaitingForMonitor, "Współrzędne ekranu docelowego są niewiarygodne.");
+            return;
+        }
+
+        _log.ResetThrottle("bad-destination");
         var needsMove = Math.Abs(panel.Rect.X - desired.X) > PanelPositionTolerance
                         || Math.Abs(panel.Rect.Y - desired.Y) > PanelPositionTolerance
                         || (_config.RestorePanelSize
@@ -543,6 +600,13 @@ public sealed class GlueService : IDisposable
             return;
         }
 
+        if (!_monitors.LayoutIsConsistent)
+        {
+            // Same reason as for the panel: moving windows by a delta between monitors whose
+            // reported positions are mid-transition scatters them onto the wrong screens.
+            return;
+        }
+
         var panelMonitor = _monitors.FindById(_config.PanelMonitorId);
         if (panelMonitor is null)
         {
@@ -571,6 +635,11 @@ public sealed class GlueService : IDisposable
 
         var panelMonitor = _monitors.FindById(_config.PanelMonitorId);
         if (panelMonitor is null)
+        {
+            return;
+        }
+
+        if (!_monitors.LayoutIsConsistent)
         {
             return;
         }
@@ -767,15 +836,6 @@ public sealed class GlueService : IDisposable
 
         _recheckTimer.Stop();
         _recheckTimer.Start();
-    }
-
-    private void LogMonitors()
-    {
-        _log.Info($"Wykryto {_monitors.Monitors.Count} monitorów:");
-        foreach (var monitor in _monitors.Monitors)
-        {
-            _log.Info("  " + monitor);
-        }
     }
 
     private void UpdateStatus(ServiceState state, string message)
