@@ -190,10 +190,19 @@ Kilka decyzji, które mają znaczenie:
   docelowego, pozycja panelu). Bez tego log milczy, gdy nic nie wymaga poprawki, i po fakcie nie da
   się odróżnić spokoju od zatrzymanej pętli. Zmiany układu ekranów są logowane z pełnymi
   współrzędnymi każdego monitora.
-* **Anty-ping-pong.** Jeśli to samo okno wraca na zakazany ekran mimo 3 przeniesień w ciągu 10 s,
-  aplikacja odpuszcza je do końca sesji, loguje to raz i pokazuje w oknie konfiguracji
-  (zakładka *Inne okna*). Analogiczny bezpiecznik chroni przed walką z samą AIDA64: po 12 korektach
-  panelu w ciągu 10 s następuje 30-sekundowa przerwa.
+* **Przeniesienie jest sprawdzane, nie zakładane.** `SetWindowPlacement` potrafi zwrócić sukces i
+  nie ruszyć okna. Po każdej operacji aplikacja odczytuje prostokąt okna i sprawdza, czy naprawdę
+  jest już na ekranie docelowym; jeśli nie — to jest niepowodzenie, zapisane w logu razem z pozycją
+  przed i po. Log zawsze pokazuje, gdzie okno wylądowało.
+* **Okna zmaksymalizowane** wymagają trzech kroków: przywrócenia na docelowym monitorze,
+  przesunięcia i ponownej maksymalizacji. Podanie `SetWindowPlacement` przesuniętego
+  `rcNormalPosition` razem z `SW_SHOWMAXIMIZED` zostawia okno zmaksymalizowane tam, gdzie było.
+* **Anty-ping-pong z przerwami, nie z dożywociem.** Aplikacje często ustawiają swoje okno kilka
+  razy w ciągu pierwszych sekund działania — Steam robi to trzykrotnie w 1,4 s. Dlatego seria
+  przeniesień (domyślnie 5 w ciągu 10 s) powoduje tylko przerwę na 30 s, po której okno dostaje
+  kolejną szansę. Dopiero okno, które wraca po trzech takich przerwach, zostaje odpuszczone do
+  końca sesji i pokazane w konfiguracji (zakładka *Inne okna*). Osobny bezpiecznik chroni przed
+  walką z samą AIDA64: po 12 korektach panelu w ciągu 10 s następuje 30-sekundowa przerwa.
 * **Czego nigdy nie ruszamy:** okien z właścicielem, `WS_EX_TOOLWINDOW`, bez tytułu,
   zminimalizowanych, ukrytych przez DWM (`DWMWA_CLOAKED`), okien powłoki (`Progman`, `WorkerW`,
   `Shell_TrayWnd`, menu Start, wyszukiwarka), okien UAC/`consent.exe`, okien procesów, których nie da
@@ -223,7 +232,7 @@ atomowo (zapis do `.tmp` + podmiana).
 | `SafetyPollSeconds` | Interwał pollingu asekuracyjnego | `5` |
 | `EventDebounceMs` | Debounce zdarzeń okien | `150` |
 | `DisplayChangeDelayMs` | Odczekanie po zmianie układu ekranów / wybudzeniu | `2000` |
-| `PingPongLimit` / `PingPongWindowSeconds` | Próg rezygnacji z okna | `3` / `10` |
+| `PingPongLimit` / `PingPongWindowSeconds` | Próg serii przeniesień, po którym okno dostaje 30 s przerwy | `5` / `10` |
 | `VerboseLogging` | Poziom `Debug` w logu | `false` |
 | `StartPaused` | Start w trybie wstrzymanym | `false` |
 
@@ -259,7 +268,9 @@ eM713A 1024×600 @ 3440,0 (ekran panelu), AIDA64 Extreme v8.35.8400.
 | XML zadania Harmonogramu | `RunLevel=HighestAvailable`, `LogonType=InteractiveToken`, poprawny UserId i ścieżka; `schtasks` przyjął plik i odrzucił dopiero na braku uprawnień |
 | Odczyt bieżącego trybu autostartu | 54 ms, bez blokowania interfejsu |
 | Pełny restart Windows | zadanie wystartowało aplikację 37 s po boocie, z uprawnieniami; panel bez żadnej ingerencji znalazł się na eM713A |
-| Fałszywe współrzędne monitora (regresja z 06.09.2026) | układ z monitorem pomocniczym zgłoszonym w (0,0) rozpoznany jako przejściowy; miejsce docelowe `{-5,0}` odrzucone jako leżące na ekranie głównym; klony i normalny układ nadal przechodzą |
+| Fałszywe współrzędne monitora (regresja z 06.09.2026) | układ z monitorem pomocniczym zgłoszonym w (0,0) rozpoznany jako przejściowy; miejsce docelowe `{-5,0}` odrzucone jako leżące na ekranie głównym; klony, pojedynczy monitor w (0,0) i normalny układ nadal przechodzą |
+| Anty-ping-pong z przerwami (regresja z 06.09.2026) | seria 6 przeniesień → przerwa zamiast rezygnacji; po przerwie okno dostaje kolejną szansę; dopiero po 3 przerwach trafia na listę problemów; `Wyczyść` zwalnia je z powrotem |
+| Przenoszenie okna zmaksymalizowanego (Steam) | okno `SDL_app` 3440×1392 wypchnięte na ekran sensora wróciło na główny w **254 ms**, nadal zmaksymalizowane |
 | Zużycie CPU w spoczynku (90 s) | 109 ms CPU → **0,12% jednego rdzenia**, 0,008% całego CPU (16 rdzeni) |
 | Pamięć w spoczynku | 69 MB working set / 28 MB prywatnej |
 

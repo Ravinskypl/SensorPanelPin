@@ -5,8 +5,13 @@ namespace SensorPanelGlue.Windows;
 public sealed record ProblemWindow(string Description, DateTime BlockedAt);
 
 /// <summary>
-/// Stops the tug-of-war with applications that reposition themselves. After N moves inside the
-/// configured window the handle is abandoned for the rest of the session and reported once.
+/// Stops the tug-of-war with applications that reposition themselves, without punishing the ones
+/// that merely repositioned themselves a few times while starting up.
+///
+/// A burst of moves pauses the window for a cool-down instead of abandoning it: applications like
+/// Steam place their window several times within a second or two during launch and then settle, so
+/// a permanent give-up after three moves in 1.4 s leaves the window stranded on the wrong screen.
+/// Only a window that keeps coming back across several cool-downs is given up on for good.
 /// </summary>
 public sealed class PingPongGuard
 {
@@ -14,8 +19,12 @@ public sealed class PingPongGuard
     {
         public int Count;
         public DateTime WindowStart;
-        public bool Blocked;
+        public DateTime CooldownUntil;
+        public int Rounds;
+        public bool Abandoned;
     }
+
+    private const int MaxRounds = 3;
 
     private readonly Dictionary<IntPtr, Entry> _entries = new();
     private readonly Dictionary<IntPtr, ProblemWindow> _problems = new();
@@ -26,16 +35,26 @@ public sealed class PingPongGuard
         _log = log;
     }
 
-    public int Limit { get; set; } = 3;
+    public int Limit { get; set; } = 5;
 
     public TimeSpan Window { get; set; } = TimeSpan.FromSeconds(10);
+
+    private TimeSpan? _cooldown;
+
+    /// <summary>How long a window is left alone after a burst before it gets another chance.</summary>
+    public TimeSpan Cooldown
+    {
+        get => _cooldown ?? TimeSpan.FromSeconds(Math.Max(15, Window.TotalSeconds * 3));
+        set => _cooldown = value;
+    }
 
     public IReadOnlyCollection<ProblemWindow> Problems => _problems.Values;
 
     public bool IsBlocked(IntPtr hwnd) =>
-        _entries.TryGetValue(hwnd, out var entry) && entry.Blocked;
+        _entries.TryGetValue(hwnd, out var entry)
+        && (entry.Abandoned || DateTime.UtcNow < entry.CooldownUntil);
 
-    /// <summary>Records a move. Returns false once the window has been given up on.</summary>
+    /// <summary>Records a move. Returns false while the window is paused or has been given up on.</summary>
     public bool RegisterMove(WindowInfo info)
     {
         var now = DateTime.UtcNow;
@@ -46,9 +65,22 @@ public sealed class PingPongGuard
             _entries[info.Handle] = entry;
         }
 
-        if (entry.Blocked)
+        if (entry.Abandoned)
         {
             return false;
+        }
+
+        if (now < entry.CooldownUntil)
+        {
+            return false;
+        }
+
+        if (entry.CooldownUntil != default)
+        {
+            // Cool-down just expired: give the window a clean slate for one more round.
+            entry.CooldownUntil = default;
+            entry.Count = 0;
+            entry.WindowStart = now;
         }
 
         if (now - entry.WindowStart > Window)
@@ -64,12 +96,24 @@ public sealed class PingPongGuard
             return true;
         }
 
-        entry.Blocked = true;
+        entry.Rounds++;
+
+        if (entry.Rounds < MaxRounds)
+        {
+            entry.CooldownUntil = now + Cooldown;
+            _log.Info(
+                $"Okno wraca na zakazany ekran mimo {Limit} przeniesień w ciągu "
+                + $"{Window.TotalSeconds:0} s — przerwa {Cooldown.TotalSeconds:0} s "
+                + $"(próba {entry.Rounds} z {MaxRounds}): {info.Describe()}");
+            return false;
+        }
+
+        entry.Abandoned = true;
         var description = $"{info.ProcessName} — {info.Title} (klasa {info.ClassName})";
         _problems[info.Handle] = new ProblemWindow(description, DateTime.Now);
         _log.Warn(
-            $"Okno wraca na zakazany ekran mimo {Limit} przeniesień w ciągu {Window.TotalSeconds:0} s — "
-            + "przestaję je przenosić: " + info.Describe());
+            $"Okno wraca na zakazany ekran po {MaxRounds} przerwach — przestaję je przenosić "
+            + "do końca sesji: " + info.Describe());
         return false;
     }
 

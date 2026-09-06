@@ -39,11 +39,17 @@ public sealed class WindowMover
             to.WorkArea.X - from.WorkArea.X,
             to.WorkArea.Y - from.WorkArea.Y);
 
-        if (info.IsMaximized)
-        {
-            return MoveMaximized(info, delta, to);
-        }
+        var outcome = info.IsMaximized
+            ? MoveMaximized(info, delta, to)
+            : MoveRestored(info, delta, to);
 
+        // A successful API call is not a moved window: SetWindowPlacement in particular can report
+        // success and leave a maximized window exactly where it was. Check the result.
+        return outcome == MoveOutcome.Success ? VerifyLanded(info, from, to) : outcome;
+    }
+
+    private MoveOutcome MoveRestored(WindowInfo info, Size delta, MonitorInfo to)
+    {
         var desired = ClampInto(new Rectangle(info.Rect.Location + delta, info.Rect.Size), to.WorkArea);
 
         var flags = SWP_NOACTIVATE | SWP_NOZORDER;
@@ -59,6 +65,34 @@ public sealed class WindowMover
 
         return Report("SetWindowPos", info.Describe());
     }
+
+    /// <summary>
+    /// Confirms the window actually changed screens, comparing how much of it now sits on the
+    /// destination against how much is still on the source.
+    /// </summary>
+    private MoveOutcome VerifyLanded(WindowInfo info, MonitorInfo from, MonitorInfo to)
+    {
+        if (!GetWindowRect(info.Handle, out var raw))
+        {
+            return MoveOutcome.Failed;
+        }
+
+        var rect = raw.ToRectangle();
+        var onTarget = Area(Rectangle.Intersect(rect, to.Bounds));
+        var onSource = Area(Rectangle.Intersect(rect, from.Bounds));
+
+        if (onTarget > onSource)
+        {
+            return MoveOutcome.Success;
+        }
+
+        _log.Warn(
+            $"Wywołanie przeniesienia zakończyło się powodzeniem, ale okno nie zmieniło ekranu: "
+            + $"{info.Describe()} — po operacji {rect}");
+        return MoveOutcome.Failed;
+    }
+
+    private static long Area(Rectangle rect) => (long)rect.Width * rect.Height;
 
     /// <summary>Places a window at an exact rectangle (used by the SensorPanel watchdog).</summary>
     public MoveOutcome PlaceAt(IntPtr hwnd, Rectangle target, bool resize, bool topmost, bool changeZOrder)
@@ -116,16 +150,25 @@ public sealed class WindowMover
         // of the coordinate base, unlike computing an absolute position.
         var normal = placement.rcNormalPosition.ToRectangle();
         var moved = ClampInto(new Rectangle(normal.Location + delta, normal.Size), to.WorkArea);
-
         placement.rcNormalPosition = RECT.FromRectangle(moved);
-        placement.showCmd = SW_SHOWMAXIMIZED;
 
+        // Two steps on purpose. Handing SetWindowPlacement a translated rcNormalPosition together
+        // with SW_SHOWMAXIMIZED leaves the window maximized on the screen it is already on - it
+        // reports success and nothing moves. Restoring it onto the destination first makes the
+        // second call maximize on the intended monitor.
+        placement.showCmd = SW_SHOWNORMAL;
+        if (!SetWindowPlacement(info.Handle, ref placement))
+        {
+            return Report("SetWindowPlacement (przywrócenie)", info.Describe());
+        }
+
+        placement.showCmd = SW_SHOWMAXIMIZED;
         if (SetWindowPlacement(info.Handle, ref placement))
         {
             return MoveOutcome.Success;
         }
 
-        return Report("SetWindowPlacement", info.Describe());
+        return Report("SetWindowPlacement (maksymalizacja)", info.Describe());
     }
 
     private MoveOutcome Report(string api, string subject)

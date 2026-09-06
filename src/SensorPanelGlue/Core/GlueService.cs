@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Drawing;
 using System.Text;
 using System.Windows.Forms;
@@ -22,6 +23,9 @@ public sealed class GlueService : IDisposable
     private const int PanelBackoffMoves = 12;
     private static readonly TimeSpan PanelBackoffDuration = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan TopmostRetryInterval = TimeSpan.FromSeconds(30);
+    private const int TopmostMaxFailures = 3;
+    private const int TopmostReapplyWarnAfter = 5;
 
     private readonly Logger _log;
     private readonly ConfigStore _store;
@@ -50,6 +54,10 @@ public sealed class GlueService : IDisposable
     private int _panelMoveCount;
     private DateTime _panelMoveWindowStart = DateTime.UtcNow;
     private DateTime _lastHeartbeat = DateTime.MinValue;
+    private DateTime _lastTopmostAttempt = DateTime.MinValue;
+    private int _topmostFailures;
+    private int _topmostReapplications;
+    private bool _topmostGivenUp;
     private DateTime _panelBackoffUntil = DateTime.MinValue;
     private ServiceStatus _status = new(ServiceState.Stopped, "Nie uruchomiono.");
 
@@ -178,6 +186,7 @@ public sealed class GlueService : IDisposable
 
         _panelHwnd = IntPtr.Zero;
         _probedPanel = IntPtr.Zero;
+        ResetTopmostState();
         _log.ResetThrottle("panel-missing");
         _log.ResetThrottle("monitor-missing");
 
@@ -580,9 +589,7 @@ public sealed class GlueService : IDisposable
     {
         if (_config.KeepPanelTopmost && (panel.ExStyle & WS_EX_TOPMOST) == 0)
         {
-            MarkSelfMoved(panel.Handle);
-            SetWindowPos(panel.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-            _log.Debug("Ustawiono SensorPanel jako zawsze na wierzchu.");
+            TrySetPanelTopmost(panel);
         }
 
         if (_config.HidePanelFromAltTab && (panel.ExStyle & WS_EX_TOOLWINDOW) == 0)
@@ -591,6 +598,72 @@ public sealed class GlueService : IDisposable
             SetWindowLongPtr(panel.Handle, GWL_EXSTYLE, new IntPtr(updated));
             _log.Debug("Ukryto SensorPanel z Alt+Tab.");
         }
+    }
+
+    /// <summary>
+    /// Sets the topmost flag and checks whether it actually stuck. AIDA64 owns this window and can
+    /// clear the flag straight away; without this check the service re-applied it on every sweep
+    /// forever, filling the log and achieving nothing.
+    /// </summary>
+    private void TrySetPanelTopmost(WindowInfo panel)
+    {
+        if (_topmostGivenUp)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        if (now - _lastTopmostAttempt < TopmostRetryInterval)
+        {
+            return;
+        }
+
+        _lastTopmostAttempt = now;
+        MarkSelfMoved(panel.Handle);
+
+        if (!SetWindowPos(panel.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE))
+        {
+            _log.Warn($"Nie udało się ustawić panelu na wierzchu (błąd {Marshal.GetLastWin32Error()}).");
+        }
+
+        var applied = (GetWindowLongPtr(panel.Handle, GWL_EXSTYLE).ToInt64() & WS_EX_TOPMOST) != 0;
+        if (applied)
+        {
+            _topmostFailures = 0;
+            _topmostReapplications++;
+            _log.Debug("Ustawiono SensorPanel jako zawsze na wierzchu.");
+
+            // The call works, yet the flag is gone again by the next sweep: AIDA64 owns this window
+            // and keeps clearing it. Say so once instead of quietly fighting forever.
+            if (_topmostReapplications == TopmostReapplyWarnAfter)
+            {
+                _log.Warn(
+                    $"Flaga „zawsze na wierzchu” była ustawiana {_topmostReapplications} razy i za "
+                    + "każdym razem znika — AIDA64 sama zarządza kolejnością okna. Włącz tę opcję "
+                    + "w ustawieniach SensorPanel w AIDA64; tutaj daje tylko chwilowy efekt.");
+            }
+
+            return;
+        }
+
+        _topmostFailures++;
+        if (_topmostFailures < TopmostMaxFailures)
+        {
+            return;
+        }
+
+        _topmostGivenUp = true;
+        _log.Warn(
+            "AIDA64 natychmiast zdejmuje z panelu flagę „zawsze na wierzchu”, więc przestaję ją "
+            + $"ustawiać (nieudanych prób: {_topmostFailures}). Włącz tę opcję w samej AIDA64 "
+            + "(ustawienia SensorPanel), albo odznacz ją w SensorPanelGlue.");
+    }
+
+    private void ResetTopmostState()
+    {
+        _topmostGivenUp = false;
+        _topmostFailures = 0;
+        _lastTopmostAttempt = DateTime.MinValue;
     }
 
     private void RelocateForeignWindows()
@@ -695,7 +768,11 @@ public sealed class GlueService : IDisposable
         switch (_mover.MoveToMonitor(info, current, host))
         {
             case MoveOutcome.Success:
-                _log.Info($"Przeniesiono okno na „{host.FriendlyName}”: {info.Describe()}");
+                // Log where the window ended up, not where it was: the old rect made a move that
+                // never happened look like a success.
+                var after = WindowQuery.Get(info.Handle);
+                _log.Info($"Przeniesiono okno na „{host.FriendlyName}”: {info.Describe()} "
+                          + $"— nowa pozycja {after?.Rect.ToString() ?? "?"}");
                 QueueRecheck(info.Handle);
                 break;
 
@@ -730,6 +807,9 @@ public sealed class GlueService : IDisposable
         {
             _panelHwnd = found.Handle;
             _log.Info("Znaleziono SensorPanel: " + found.Describe());
+
+            // A recreated panel window deserves a fresh attempt at the styles.
+            ResetTopmostState();
             ProbePanelAccess(found.Handle);
         }
 

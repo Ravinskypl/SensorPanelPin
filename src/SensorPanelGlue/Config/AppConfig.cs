@@ -85,7 +85,11 @@ public sealed class AppConfig
 
     public int DisplayChangeDelayMs { get; set; } = 2000;
 
-    public int PingPongLimit { get; set; } = 3;
+    /// <summary>
+    /// Applications commonly place their window several times while starting up; a limit of 3 was
+    /// low enough to abandon Steam 1.4 s into its launch.
+    /// </summary>
+    public int PingPongLimit { get; set; } = 5;
 
     public int PingPongWindowSeconds { get; set; } = 10;
 
