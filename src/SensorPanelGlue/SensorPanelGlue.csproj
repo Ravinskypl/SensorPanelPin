@@ -2,7 +2,16 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <!--
+      .NET 10 (LTS) rather than 8: .NET 8 support ends in November 2026, and WPF on .NET 10 ships the
+      Fluent theme - the Windows 11 look, following the system light/dark setting and accent colour.
+    -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <!--
+      WPF draws every window. WinForms remains for two things WPF does not offer: the tray icon
+      (NotifyIcon) and the hidden NativeWindow that receives display, power and session broadcasts.
+    -->
+    <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -15,11 +24,12 @@
     <!--
       DPI awareness is declared in app.manifest (PerMonitorV2). The OS applies it before any managed
       code runs, which is what a tool that measures other windows needs; Application.SetHighDpiMode
-      would run too late. The WinForms analyzer WFAC010 assumes the API route, so it is suppressed
+      would run too late. The WinForms analyzer (WFAC010, renamed WFO0003 in .NET 10) assumes the API route, so it is suppressed
       here on purpose - the code never calls SetHighDpiMode, so there is no conflicting setting.
     -->
     <GenerateApplicationConfiguration>false</GenerateApplicationConfiguration>
-    <NoWarn>$(NoWarn);WFAC010</NoWarn>
+    <!-- WPF0001: Application.ThemeMode (the Fluent theme switch) is still flagged experimental. -->
+    <NoWarn>$(NoWarn);WFAC010;WFO0003;WPF0001</NoWarn>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
@@ -27,9 +37,18 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <InvariantGlobalization>true</InvariantGlobalization>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <Version>1.0.0</Version>
+    <Version>2.0.0</Version>
     <Product>SensorPanelGlue</Product>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Both frameworks define Application, Button, MessageBox...; neither is imported globally. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+    <!-- WPF drops System.IO from implicit usings (Path clashes with System.Windows.Shapes.Path); that
+         namespace is never imported here, so System.IO comes back. -->
+    <Using Include="System.IO" />
+  </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="SensorPanelGlue.Tests" />

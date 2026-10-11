@@ -13,6 +13,7 @@ namespace SensorPanelGlue.Core;
 public static class Elevation
 {
     public const int ErrorAccessDenied = 5;
+    public const string AfterRestartArgument = "--after-restart";
     private const int ErrorCancelled = 1223;
 
     public static bool IsElevated()
@@ -44,9 +45,12 @@ public static class Elevation
 
         try
         {
+            // The new instance would otherwise race this one for the single-instance mutex and,
+            // losing, exit with "already running"; the flag tells it to wait for us to go.
             Process.Start(new ProcessStartInfo
             {
                 FileName = exe,
+                Arguments = AfterRestartArgument,
                 UseShellExecute = true,
                 Verb = "runas",
             });

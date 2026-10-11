@@ -1,7 +1,6 @@
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Windows.Forms;
 using SensorPanelGlue.Config;
 using SensorPanelGlue.Diagnostics;
 using SensorPanelGlue.Monitors;
@@ -137,9 +136,10 @@ public sealed class GlueService : IDisposable
         _started = true;
         _paused = _config.StartPaused;
 
-        // Posting needs a WinForms context bound to this (the UI) thread.
-        var ui = SynchronizationContext.Current as WindowsFormsSynchronizationContext
-                 ?? new WindowsFormsSynchronizationContext();
+        // Posting needs a context bound to this (the UI) thread: WPF's dispatcher context in the app,
+        // anything installed by a host otherwise.
+        var ui = SynchronizationContext.Current
+                 ?? throw new InvalidOperationException("GlueService.Start must run on a UI thread with a SynchronizationContext.");
         _clock = new LoopClock(ui, OnTick);
 
         // MonitorRegistry logs the layout itself whenever it changes, including this first read.
@@ -244,6 +244,27 @@ public sealed class GlueService : IDisposable
         message = $"Zmierzono pozycję panelu na ekranie „{monitor.FriendlyName}”.";
         return true;
     }
+
+    /// <summary>
+    /// Where the panel is and where it should be, for drawing. Reads the cached handle only - no
+    /// enumeration - so a settings window can refresh this every second at negligible cost.
+    /// </summary>
+    public PanelSnapshot GetPanelSnapshot()
+    {
+        var target = _monitors.FindById(_config.PanelMonitorId);
+        var panel = _panelHwnd != IntPtr.Zero ? WindowQuery.Get(_panelHwnd) : null;
+
+        Rectangle? desired = null;
+        if (panel is not null && target is not null)
+        {
+            desired = ComputePanelTarget(panel, target);
+        }
+
+        return new PanelSnapshot(panel?.Rect, desired, target?.StableId);
+    }
+
+    /// <summary>Lets windows given up on by the ping-pong guard be moved again.</summary>
+    public void ForgiveProblemWindows() => _guard.Clear();
 
     /// <summary>Dumps every top-level window of the process named by <paramref name="rule"/> to the log.</summary>
     public string RunDiagnostics(WindowRule rule)

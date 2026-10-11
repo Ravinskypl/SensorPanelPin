@@ -1,5 +1,7 @@
-using System.Windows.Forms;
+using System.Windows;
+using System.Windows.Threading;
 using SensorPanelGlue.Config;
+using SensorPanelGlue.Core;
 using SensorPanelGlue.Diagnostics;
 using SensorPanelGlue.UI;
 
@@ -13,19 +15,15 @@ internal static class Program
     private static void Main(string[] args)
     {
         using var mutex = new Mutex(initiallyOwned: true, MutexName, out var isFirstInstance);
-        if (!isFirstInstance)
+        if (!isFirstInstance && !WaitForPreviousInstance(mutex, args))
         {
             MessageBox.Show(
                 "SensorPanelGlue już działa — ikona znajduje się w zasobniku systemowym.",
                 "SensorPanelGlue",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
             return;
         }
-
-        // DPI awareness is declared in app.manifest; only visual styles are configured here.
-        Application.EnableVisualStyles();
-        Application.SetCompatibleTextRenderingDefault(false);
 
         using var log = new Logger(Path.Combine(ConfigStore.DefaultAppDataDirectory, "logs"));
         var store = new ConfigStore(log);
@@ -38,8 +36,22 @@ internal static class Program
         log.Info("=== SensorPanelGlue start ===");
         log.Info("Wersja: " + (typeof(Program).Assembly.GetName().Version?.ToString() ?? "?"));
 
-        Application.ThreadException += (_, e) =>
+        // Fluent: the Windows 11 look, following the system light/dark setting and accent colour.
+        var app = new Application
+        {
+            ThemeMode = ThemeMode.System,
+            ShutdownMode = ShutdownMode.OnExplicitShutdown,
+        };
+        app.Resources.MergedDictionaries.Add(new ResourceDictionary
+        {
+            Source = new Uri("pack://application:,,,/SensorPanelGlue;component/UI/Theme.xaml", UriKind.Absolute),
+        });
+
+        app.DispatcherUnhandledException += (_, e) =>
+        {
             log.Error("Nieobsłużony wyjątek w wątku UI.", e.Exception);
+            e.Handled = true;
+        };
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
@@ -49,10 +61,12 @@ internal static class Program
             }
         };
 
+        TrayController? tray = null;
         try
         {
-            using var context = new TrayApplicationContext(log, store, config);
-            Application.Run(context);
+            // Created inside the running loop: the service needs the dispatcher's context to post to.
+            app.Startup += (_, _) => tray = new TrayController(log, store, config);
+            app.Run();
         }
         catch (Exception ex)
         {
@@ -60,11 +74,37 @@ internal static class Program
             MessageBox.Show(
                 "SensorPanelGlue napotkał błąd i zostanie zamknięty.\n\nSzczegóły w logu:\n" + log.LogFilePath,
                 "SensorPanelGlue",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+        finally
+        {
+            tray?.Dispose();
         }
 
         log.Info("=== SensorPanelGlue stop ===");
         GC.KeepAlive(mutex);
+    }
+
+    /// <summary>
+    /// After "restart as administrator" the old instance is still exiting when the new one starts;
+    /// without waiting, the new one would see the mutex taken and quit.
+    /// </summary>
+    private static bool WaitForPreviousInstance(Mutex mutex, string[] args)
+    {
+        if (!args.Contains(Elevation.AfterRestartArgument, StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        try
+        {
+            return mutex.WaitOne(TimeSpan.FromSeconds(15));
+        }
+        catch (AbandonedMutexException)
+        {
+            // The previous instance ended without releasing it: ownership passes to us.
+            return true;
+        }
     }
 }

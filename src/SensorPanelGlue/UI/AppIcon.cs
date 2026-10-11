@@ -29,6 +29,25 @@ public static class AppIcon
 
     public static Icon TrayPaused => _trayPaused ??= FromArtwork(TraySize, IconArtwork.PausedAccent);
 
+    private static System.Windows.Media.ImageSource? _windowSource;
+
+    /// <summary>The same app.ico as a WPF image, for window title bars and the navigation header.</summary>
+    public static System.Windows.Media.ImageSource WindowSource => _windowSource ??= LoadWindowSource();
+
+    private static System.Windows.Media.ImageSource LoadWindowSource()
+    {
+        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(ResourceName)
+                           ?? throw new InvalidOperationException("Brak osadzonego zasobu " + ResourceName);
+
+        var decoder = new System.Windows.Media.Imaging.IconBitmapDecoder(
+            stream,
+            System.Windows.Media.Imaging.BitmapCreateOptions.None,
+            System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+
+        // 32 px: crisp for a 20 px header glyph at up to 150 % scaling, and a fine title-bar icon.
+        return decoder.Frames.FirstOrDefault(f => f.PixelWidth == 32) ?? decoder.Frames[0];
+    }
+
     /// <summary>Kept for call sites that only distinguish running from paused.</summary>
     public static Icon Paused => TrayPaused;
 

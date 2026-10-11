@@ -24,72 +24,91 @@ modyfikacji jądra. Tylko udokumentowane, user-mode Win32 API.
 
 ## Wybór stacku
 
-**C# / .NET 8 + WinForms (tray) + P/Invoke do Win32.**
+**C# / .NET 10 (LTS) — silnik na P/Invoke do Win32, interfejs w WPF z motywem Fluent.**
 
-Zadanie sprowadza się do intensywnego korzystania z Win32: `SetWinEventHook`, `SetWindowPos`,
+Silnik sprowadza się do intensywnego korzystania z Win32: `SetWinEventHook`, `SetWindowPos`,
 `SetWindowPlacement`, `EnumWindows`, `EnumDisplayMonitors` i CCD (`QueryDisplayConfig`). C# daje do
-tego bezpośredni dostęp przez P/Invoke bez żadnej warstwy pośredniej, a jednocześnie — w odróżnieniu
-od C++ — pozwala napisać okno konfiguracji, ikonę w zasobniku i obsługę JSON-a w kilkuset liniach
-zamiast w kilku tysiącach. Pętla komunikatów WinForms jest tu wręcz potrzebna: hooki
-`WINEVENT_OUTOFCONTEXT` dostarczają zdarzenia właśnie przez kolejkę komunikatów wątku, który je
-zarejestrował, więc callback trafia od razu na wątek UI i nie wymaga marshalingu.
+tego bezpośredni dostęp przez P/Invoke bez żadnej warstwy pośredniej, a jednocześnie pozwala napisać
+interfejs i obsługę JSON-a bez tysięcy linii, których wymagałoby C++. Python odpadł przez konieczność
+dowożenia runtime'u albo pakowania PyInstallerem.
 
-Python odpadł przez konieczność dowożenia runtime'u albo pakowania PyInstallerem (kilkadziesiąt MB
-i wolniejszy start dla programu, który ma po prostu siedzieć w tle). C++ dałby minimalnie niższy
-narzut, ale przy zmierzonym zużyciu 0,12% jednego rdzenia nie ma czego optymalizować.
+Interfejs jest w **WPF z motywem Fluent** — tym samym językiem wizualnym co Ustawienia Windows 11:
+jasny lub ciemny według ustawienia systemu, kolor akcentu z systemu, tło Mica, zaokrąglone karty.
+Wersja 1 miała interfejs w WinForms, który na .NET 8 nie ma trybu ciemnego — każdą kontrolkę
+trzeba by malować ręcznie, a natywne listy rozwijane i pola liczbowe i tak zostałyby jasne. WPF na
+.NET 10 ma motyw Fluent wbudowany. Drugi powód zmiany: wsparcie .NET 8 kończy się w listopadzie
+2026, a .NET 10 to wydanie LTS.
+
+WinForms zostaje w dwóch miejscach, których WPF nie obsługuje: ikona w zasobniku (`NotifyIcon`) i
+ukryte okno odbierające rozgłoszenia `WM_DISPLAYCHANGE`, `WM_POWERBROADCAST` i zmian sesji.
 
 Manifest deklaruje **Per-Monitor DPI Awareness V2**. Świadomie nie używamy
-`Application.SetHighDpiMode` ani właściwości `ApplicationHighDpiMode`: system stosuje ustawienie z
-manifestu jeszcze zanim uruchomi się kod zarządzany, a program, który mierzy i przestawia cudze
-okna, musi być świadomy DPI od pierwszej instrukcji. Analizator WinForms `WFAC010` zakłada drogę
-przez API, dlatego jest jawnie wyciszony w `.csproj` — kod nigdy nie woła `SetHighDpiMode`, więc nie
-ma konfliktu ustawień.
+`Application.SetHighDpiMode`: system stosuje ustawienie z manifestu jeszcze zanim uruchomi się kod
+zarządzany, a program, który mierzy i przestawia cudze okna, musi być świadomy DPI od pierwszej
+instrukcji. Analizator WinForms (`WFAC010`, w .NET 10 `WFO0003`) zakłada drogę przez API, dlatego
+jest jawnie wyciszony w `.csproj`.
 
 ---
 
-## Uruchomienie
+## Instalacja
 
-Wymagania: Windows 10/11 x64, .NET 8 Desktop Runtime (albo publish self-contained — patrz niżej).
-
-```bash
-dotnet build src/SensorPanelGlue/SensorPanelGlue.csproj -c Release
-```
-
-Plik wykonywalny: `src/SensorPanelGlue/bin/Release/net8.0-windows/win-x64/SensorPanelGlue.exe`
-
-### Jeden plik, bez zależności od zainstalowanego runtime'u
+Wymagania do budowania: .NET 10 SDK. Do uruchamiania wersji opublikowanej: nic — runtime jest w
+środku.
 
 ```bash
-dotnet publish src/SensorPanelGlue/SensorPanelGlue.csproj -c Release -p:PublishSingleFile=true -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
+dotnet publish src/SensorPanelGlue/SensorPanelGlue.csproj -c Release -p:PublishSingleFile=true -p:SelfContained=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
 ```
 
-Efekt: `publish/SensorPanelGlue.exe`, **62,8 MB**, jeden plik, nic obok. Uruchamia się na maszynie
-bez zainstalowanego .NET.
+Efekt: `publish\SensorPanelGlue.exe` (62,6 MB, z runtime'em .NET w środku) oraz pięć bibliotek
+natywnych WPF obok niego — razem 70,5 MB.
 
-Bez `EnableCompressionInSingleFile` plik ma 138,4 MB i startuje odrobinę szybciej — cały runtime
-leży w nim nieskompresowany. `DebugType=none` pomija plik `.pdb`, niepotrzebny do działania.
-Bez `IncludeNativeLibrariesForSelfExtract` biblioteki natywne lądują obok pliku wykonywalnego, co
-przeczy sensowi tej operacji.
+**Celowo bez `IncludeNativeLibrariesForSelfExtract`.** Z tą flagą wszystko byłoby w jednym pliku,
+ale biblioteki natywne są wtedy przy każdym starcie wypakowywane do `%TEMP%\.net\…` — katalogu, nad
+którym użytkownik ma pełną kontrolę. Program uruchamiany z uprawnieniami administratora ładowałby
+biblioteki z miejsca, w które dowolny program działający na zwykłym koncie może podłożyć własne.
 
-Wersja zwykła (`dotnet build`) to 160 KB plus zainstalowany .NET 8 Desktop Runtime — sensowna, gdy
-program zostaje na tej samej maszynie, na której go budujesz.
+Potem instalacja, w PowerShellu uruchomionym jako administrator:
 
-Sprawdzone na wersji jednoplikowej: manifest przeżywa spakowanie (proces raportuje
-`PER_MONITOR_AWARE_V2`), ikona i zasób `app.ico` działają, hooki i przenoszenie okien działają
-(194 ms), pierwszy wpis w logu 1,4 s po starcie procesu.
+```bash
+powershell -ExecutionPolicy Bypass -File scripts\Install.ps1
+```
+
+Skrypt kopiuje build do `C:\Program Files\SensorPanelGlue`, ustawia administratorów jako właściciela,
+przywraca chronione uprawnienia dziedziczone z `Program Files`, a jeśli zadanie autostartu istnieje —
+przestawia je na zainstalowaną kopię i uruchamia. To jedyne miejsce, z którego program może
+startować z uprawnieniami administratora; patrz sekcja *Bezpieczeństwo*.
 
 ### Pierwsze uruchomienie
 
 1. Uruchom AIDA64 i włącz SensorPanel.
-2. Uruchom `SensorPanelGlue.exe` — pojawi się ikona w zasobniku systemowym.
-3. Kliknij ikonę dwukrotnie (albo prawym → **Konfiguracja**).
-4. Zakładka **Ekrany**: kliknij **Identyfikuj ekrany**, żeby zobaczyć numery na fizycznych
-   monitorach, zaznacz właściwy wiersz i naciśnij **Ekran SensorPanela**. Analogicznie wskaż
-   **Ekran główny** — tam będą lądowały okna innych aplikacji.
-5. Ustaw panel ręcznie tam, gdzie ma być, i naciśnij **Zapisz bieżącą pozycję panelu jako docelową**
-   (zakładka *SensorPanel*). Jeśli tego nie zrobisz, aplikacja zapamięta bieżącą pozycję sama, przy
-   pierwszym uruchomieniu, gdy panel będzie już na właściwym ekranie.
-6. Zakładka **Zaawansowane** → **Uruchamianie razem z Windows**, jeśli ma startować automatycznie.
+2. Uruchom `SensorPanelGlue.exe` — w zasobniku pojawi się ikona.
+3. Kliknij ikonę — otworzą się ustawienia na stronie **Ekrany**, z mapą Twoich monitorów.
+4. W karcie **Ekran SensorPanela** wybierz ekran, na którym ma być panel. **Identyfikuj** pokazuje na
+   każdym monitorze jego numer z mapy.
+5. Jeśli panel nie stoi jeszcze dokładnie tam, gdzie ma, ustaw go ręcznie i na stronie
+   **SensorPanel** naciśnij **Zapamiętaj obecne**. Bez tego miejsce zapamięta się samo, gdy panel
+   pierwszy raz pojawi się na swoim ekranie.
+6. Na stronie **Uruchamianie** wybierz, czy program ma startować razem z Windows.
+
+Zmiany działają od razu, jak w Ustawieniach Windows — nie ma przycisku „Zapisz".
+
+---
+
+## Interfejs
+
+Cztery strony w panelu nawigacji:
+
+* **Ekrany** — mapa monitorów w skali, z SensorPanelem narysowanym tam, gdzie naprawdę jest: w
+  kolorze akcentu, gdy stoi na swoim miejscu, a w kolorze ostrzeżenia, gdy jest na innym ekranie,
+  z przerywanym obrysem miejsca, w którym powinien być. Mapa odświeża się co sekundę, póki okno jest
+  otwarte. Pod nią jedno zdanie o stanie i wybór ról ekranów.
+* **SensorPanel** — pilnowanie miejsca i rozmiaru, zapamiętanie bieżącego miejsca, zachowanie okna.
+  Reguła rozpoznawania okna jest w zwiniętej karcie „Zaawansowane" — domyślna pasuje do AIDA64.
+* **Inne okna** — przenoszenie okien z ekranu panelu, wyjątki, okna, które wracały.
+* **Uruchamianie** — autostart, log, a w zwiniętej karcie czasy reakcji.
+
+Menu ikony w zasobniku ma tylko to, co robi się z zasobnika: stan, otwarcie ustawień, natychmiastową
+poprawkę położenia, wstrzymanie i zamknięcie.
 
 ---
 
@@ -102,48 +121,66 @@ czujników). Windows UIPI nie pozwala procesowi o niższym poziomie integralnoś
 **W praktyce oznacza to, że SensorPanelGlue uruchomiony normalnie nie przesunie panelu AIDA64.**
 
 Aplikacja wykrywa to od razu przy starcie (nieszkodliwym, „pustym" wywołaniem `SetWindowPos`, które
-niczego nie przesuwa) i zamiast milczeć:
-
-* wypisuje ostrzeżenie w logu,
-* pokazuje dymek przy ikonie w zasobniku,
-* zmienia status na **„Brak uprawnień"**,
-* wyświetla żółty pasek w oknie konfiguracji,
-* udostępnia w menu **Uruchom ponownie jako administrator**.
+niczego nie przesuwa) i zamiast milczeć: wypisuje ostrzeżenie w logu, pokazuje powiadomienie przy
+ikonie, a na stronie **Ekrany** wyświetla żółty pasek z przyciskiem **Uruchom jako administrator**.
+To samo polecenie jest w menu ikony.
 
 Elewacja nigdy nie jest wymuszana przy starcie — manifest deklaruje `asInvoker`, a UAC pojawia się
-wyłącznie wtedy, gdy sam klikniesz ten punkt menu.
+wyłącznie wtedy, gdy sam klikniesz to polecenie.
 
 ### Autostart
 
 Wpis w `HKCU\...\Run` **nie potrafi podnieść uprawnień** — to reguła Windows, nie ograniczenie tego
-kodu. Autostart przez rejestr uruchomi aplikację bez uprawnień, czyli po restarcie systemu panel nie
-będzie pilnowany, mimo że ikona w zasobniku będzie na miejscu.
+kodu. Dlatego strona **Uruchamianie** ma trzy możliwości:
 
-Dlatego są trzy tryby, do wyboru w **Zaawansowane → Uruchamianie razem z Windows** albo w menu ikony (**Uruchamiaj z Windows**):
-
-| Tryb | Co robi |
+| Wybór | Co robi |
 |---|---|
-| **Wyłączony** | Usuwa oba wpisy |
-| **Rejestr (HKCU\\...\\Run) — bez uprawnień administratora** | Klasyczny autostart, bez uprawnień |
-| **Harmonogram zadań — z uprawnieniami administratora** | Zadanie `SensorPanelGlue` z `RunLevel = HighestAvailable`, wyzwalacz przy logowaniu z opóźnieniem 15 s (żeby AIDA64 zdążyła wstać). Startuje z uprawnieniami **bez monitu UAC przy każdym logowaniu** — UAC pojawia się tylko raz, przy tworzeniu zadania |
+| **Nie uruchamiaj** | Usuwa oba wpisy |
+| **Uruchamiaj bez uprawnień administratora** | Wpis w `HKCU\...\Run`. Panel nie będzie pilnowany, jeśli AIDA64 działa jako administrator |
+| **Uruchamiaj z uprawnieniami administratora** | Zadanie `SensorPanelGlue` w Harmonogramie, `RunLevel = HighestAvailable`, wyzwalacz przy logowaniu z opóźnieniem 15 s. Startuje z uprawnieniami **bez monitu UAC przy logowaniu** |
 
-Sama AIDA64 uruchamia się identycznie — zadaniem `\AIDA64 AutoStart` — i z tego samego powodu:
-program, który potrzebuje uprawnień, nie da się sensownie wystartować z klucza `Run`. Opóźnienie
-15 s wystarcza, żeby panel istniał, zanim SensorPanelGlue zacznie go szukać; gdyby AIDA64 startowała
-wolniej, aplikacja i tak poczeka i złapie okno, gdy się pojawi.
+Sama AIDA64 uruchamia się identycznie — zadaniem `\AIDA64 AutoStart` — i z tego samego powodu.
+Opóźnienie 15 s wystarcza, żeby panel istniał, zanim SensorPanelGlue zacznie go szukać; gdyby
+AIDA64 startowała wolniej, aplikacja poczeka i złapie okno, gdy się pojawi.
 
-Tryby wykluczają się wzajemnie — wybranie jednego usuwa drugi. Aplikacja nie tworzy niczego z
-własnej inicjatywy; zmiana następuje wyłącznie po wybraniu trybu w interfejsie.
-
-Wpis zapamiętuje **bieżącą ścieżkę pliku wykonywalnego**. Przebudowanie w to samo miejsce niczego nie
-psuje, ale po przeniesieniu programu (np. `dotnet publish` do innego katalogu) ustaw tryb ponownie.
-Rejestrowana jest ścieżka do `SensorPanelGlue.exe`, nie do procesu-hosta: jeśli bieżący proces nazywa
-się `SensorPanelGlue.exe`, używana jest jego ścieżka; w przeciwnym razie (np. przy uruchomieniu przez
-`dotnet SensorPanelGlue.dll`) aplikacja szuka `SensorPanelGlue.exe` obok biblioteki, a gdy go tam
-nie ma — odmawia zapisu zamiast zarejestrować `dotnet.exe`.
+Zadanie jest tworzone i usuwane przez API COM Harmonogramu zadań, wewnątrz procesu — bez
+`schtasks.exe` i bez pliku tymczasowego. Utworzenie lub usunięcie zadania z uprawnieniami wymaga,
+żeby program sam działał z uprawnieniami, i jest **odrzucane, jeśli program leży w miejscu, które
+mogą zmieniać zwykli użytkownicy** (patrz niżej). Wpis zapamiętuje ścieżkę `SensorPanelGlue.exe`
+(nigdy procesu-hosta, np. `dotnet.exe`); po przeniesieniu programu ustaw tryb ponownie albo
+uruchom skrypt instalacyjny, który przestawia zadanie sam.
 
 Przenoszenie okien *innych* aplikacji działa bez elewacji, o ile te aplikacje same nie są
 uruchomione jako administrator.
+
+---
+
+## Bezpieczeństwo
+
+Program normalnie działa z tokenem administratora, uruchamiany przy logowaniu bez pytania UAC.
+Właściwą granicą bezpieczeństwa jest więc ta między nim a zwykłym kodem działającym na tym samym
+koncie bez uprawnień: wszystko, co ten kod może zmienić, a co program z uprawnieniami potem czyta,
+uruchamia lub zapisuje, musi być sprawdzone.
+
+* **Plik uruchamiany przy logowaniu musi być chroniony.** Przed utworzeniem zadania program sprawdza
+  listy uprawnień (ACL) pliku wykonywalnego, plików obok niego, jego katalogu i wszystkich katalogów
+  nadrzędnych: zapisywać, usuwać lub zmieniać uprawnienia mogą tylko `SYSTEM`, administratorzy i
+  `TrustedInstaller`, a właścicielem musi być któryś z nich. Wersja 1 zarejestrowała zadanie dla
+  pliku na `D:\`, gdzie dziedziczone uprawnienia dają każdemu zalogowanemu prawo modyfikacji — każdy
+  program na zwykłym koncie mógł podmienić plik i przy następnym logowaniu dostać uprawnienia
+  administratora. Dlatego instalacja trafia do `Program Files`.
+* **Żadnych bibliotek z `%TEMP%`.** Publikacja bez samorozpakowywania — patrz *Instalacja*.
+* **Zadanie przez API, nie przez plik.** Wersja 1 zapisywała definicję zadania do stałego pliku w
+  `%TEMP%` i przekazywała go `schtasks.exe` uruchamianemu z uprawnieniami i bez pełnej ścieżki.
+  Pozwalało to podmienić plik między zapisem a odczytem oraz podłożyć własny `schtasks.exe`.
+* **Zapis do profilu użytkownika przez zweryfikowany uchwyt.** Log i konfiguracja leżą w
+  `%APPDATA%`, który zwykły kod może podmienić na dowiązanie (junction lub hardlink nie wymagają
+  uprawnień). Katalog jest sprawdzany pod kątem dowiązań, a każdy otwarty plik — przez uchwyt — musi
+  mieć dokładnie jedno dowiązanie i leżeć tam, gdzie powinien. Jeśli nie, log się wyłącza (i mówi to
+  powiadomieniem), a konfiguracja nie jest zapisywana.
+* **Treść kontrolowana przez innych.** Tytuły okien ustawia program, który jest właścicielem okna.
+  Każde przełamanie linii w komunikacie logu jest wcinane, więc tytuł nie podrobi wpisu; tytuły są
+  czytane maksymalnie do 512 znaków i skracane w logu do 60; dopasowanie wzorców ma limit czasu.
 
 ---
 
@@ -156,10 +193,12 @@ WinEventHook (OUTOFCONTEXT)          zdarzenia systemowe            poll bezpiec
   MINIMIZEEND                          WM_POWERBROADCAST
         |                              WM_WTSSESSION_CHANGE                  |
         v                                     |                              |
-   kolejka + debounce 150 ms          opóźnienie 2 s                         |
+   terminy: zdarzenia 150 ms (max 1 s)  zmiana ekranów 2 s (max 10 s)        |
         |                                     |                              |
-        +------------------> GlueService <----+------------------------------+
+        +------------> LoopClock (jeden zegar, wpis do kolejki UI) <---------+
                                   |
+                             GlueService                strażnik w puli wątków:
+                                  |                     „pętla nie odpowiada od N s"
                  +----------------+----------------+
                  v                                 v
         watchdog SensorPanela            relokator obcych okien
@@ -171,141 +210,125 @@ Kilka decyzji, które mają znaczenie:
 
 * **Identyfikacja monitorów przez ścieżkę urządzenia.** `QueryDisplayConfig` zwraca
   `monitorDevicePath` (np. `\\?\DISPLAY#EYA713A#5&3af5c87a&0&UID4352#{...}`), które nie zmienia się
-  po restarcie ani po przepięciu kabla. Indeksy i współrzędne zmieniają się i nie nadają się na
-  identyfikator. Gdy docelowy monitor jest nieobecny, aplikacja **czeka** — nigdy nie parkuje panelu
-  na zastępczym ekranie.
-* **Zdarzenia, nie polling.** `EVENT_OBJECT_LOCATIONCHANGE` jest bardzo gadatliwe (generuje je też
-  ruch kursora), więc callback od razu odrzuca wszystko, co nie jest `OBJID_WINDOW` / `CHILDID_SELF`,
-  a reszta trafia do kolejki z debounce'em. Poll co 5 s jest tylko siatką asekuracyjną.
-* **Brak kradzieży fokusu.** Wszystkie przesunięcia używają `SWP_NOACTIVATE`. Okna zmaksymalizowane
-  przenoszone są przez `SetWindowPlacement` — translacja `rcNormalPosition` o deltę i ponowna
-  maksymalizacja na nowym monitorze, bez aktywacji okna.
-* **Nieufność wobec współrzędnych w trakcie zmiany układu.** Monitor wyłączony przyciskiem bywa
-  nadal enumerowany przez Windows, ale z fałszywą pozycją — potrafi zostać zgłoszony w punkcie
-  (0,0), nachodząc na ekran główny. Wyliczenie pozycji panelu z takiego odczytu wyrzuca go na
-  niewłaściwy ekran. Aplikacja pilnuje więc dwóch rzeczy: układ, w którym prostokąty monitorów
-  częściowo na siebie nachodzą (klony, mające identyczne prostokąty, są w porządku), jest uznawany
-  za przejściowy i nic się wtedy nie dzieje; a każde wyliczone miejsce docelowe panelu musi
-  faktycznie leżeć na monitorze docelowym — inaczej przeniesienie jest odrzucane i zapisane w logu
-  z konkretnymi liczbami. Ta sama blokada obowiązuje przy przenoszeniu obcych okien.
-* **Puls w logu.** Co 5 minut leci wpis ze stanem (liczba monitorów, spójność, prostokąt ekranu
-  docelowego, pozycja panelu). Bez tego log milczy, gdy nic nie wymaga poprawki, i po fakcie nie da
-  się odróżnić spokoju od zatrzymanej pętli. Zmiany układu ekranów są logowane z pełnymi
-  współrzędnymi każdego monitora.
-* **Przeniesienie jest sprawdzane, nie zakładane.** `SetWindowPlacement` potrafi zwrócić sukces i
-  nie ruszyć okna. Po każdej operacji aplikacja odczytuje prostokąt okna i sprawdza, czy naprawdę
-  jest już na ekranie docelowym; jeśli nie — to jest niepowodzenie, zapisane w logu razem z pozycją
-  przed i po. Log zawsze pokazuje, gdzie okno wylądowało.
-* **Okna zmaksymalizowane** wymagają trzech kroków: przywrócenia na docelowym monitorze,
-  przesunięcia i ponownej maksymalizacji. Podanie `SetWindowPlacement` przesuniętego
-  `rcNormalPosition` razem z `SW_SHOWMAXIMIZED` zostawia okno zmaksymalizowane tam, gdzie było.
-* **Anty-ping-pong z przerwami, nie z dożywociem.** Aplikacje często ustawiają swoje okno kilka
-  razy w ciągu pierwszych sekund działania — Steam robi to trzykrotnie w 1,4 s. Dlatego okno
-  dopuszczone jest do 5 przeniesień w ciągu 10 s (`PingPongLimit` / `PingPongWindowSeconds`); każde
-  kolejne w tym oknie czasowym powoduje tylko przerwę (domyślnie 30 s — `max(15 s, 3 × okno czasowe)`,
-  nie jest osobnym kluczem konfiguracji), po której okno dostaje kolejną szansę z wyzerowanym
-  licznikiem. Dopiero trzecia taka seria (czyli po dwóch przerwach) kończy się odpuszczeniem okna do
-  końca sesji i pokazaniem go w konfiguracji (zakładka *Inne okna*). Osobny bezpiecznik chroni przed
-  walką z samą AIDA64: po 12 korektach panelu w ciągu 10 s następuje 30-sekundowa przerwa.
+  po restarcie ani po przepięciu kabla. Gdy docelowy monitor jest nieobecny, aplikacja **czeka** —
+  nigdy nie parkuje panelu na zastępczym ekranie.
+* **Jeden zegar na terminach.** Wersja 1 miała trzy timery WinForms, restartowane przy każdym
+  zdarzeniu okna. `Timer.Stop()` w WinForms niszczy ukryte okno timera, a `Start()` tworzy nowe —
+  zmierzone 208 µs na restart, około 150 razy więcej niż reszta pracy. Gorzej: `WM_TIMER` jest
+  generowany tylko wtedy, gdy kolejka komunikatów jest pusta, więc zalew zdarzeń uciszał wszystkie
+  trzy timery naraz, łącznie z pollem, który miał być zabezpieczeniem. Zgadza się to z incydentem, w
+  którym zalogowano trzy zmiany ekranów, a opóźnione wymuszenie nigdy nie nastąpiło. Teraz jeden
+  zegar w puli wątków wstawia komunikat do kolejki UI (komunikat wstawiony nie jest głodzony jak
+  `WM_TIMER`), zdarzenia tylko przesuwają terminy, a każda seria ma górny limit odroczenia. Osobny
+  strażnik w puli wątków zapisuje w logu, jeśli pętla przestanie odpowiadać.
+* **Nieufność wobec współrzędnych w trakcie zmiany układu.** Układ, w którym prostokąty monitorów
+  częściowo na siebie nachodzą (klony z identycznymi prostokątami są w porządku), jest uznawany za
+  przejściowy i nic się wtedy nie dzieje; a każde wyliczone miejsce docelowe panelu musi faktycznie
+  leżeć na monitorze docelowym. Ta sama blokada obowiązuje przy przenoszeniu obcych okien.
+* **Puls w logu.** Co 5 minut wpis ze stanem, także gdy pilnowanie jest wstrzymane, z liczbą
+  wpisów logu, których nie udało się zapisać. Zmiany układu ekranów są logowane z pełnymi
+  współrzędnymi. Wpisy utracone, gdy plik był zajęty, są liczone i zgłaszane, gdy zapis znów działa.
+* **Przeniesienie jest sprawdzane, nie zakładane.** Po każdej operacji aplikacja odczytuje prostokąt
+  okna i sprawdza, czy naprawdę jest już na ekranie docelowym. Log pokazuje, gdzie okno wylądowało.
+* **Okna zmaksymalizowane**: przywrócenie na docelowym monitorze, przesunięcie, ponowna
+  maksymalizacja. Gdy maksymalizacja się nie uda, okno wraca do pierwotnego stanu.
+* **Anty-ping-pong z przerwami, nie z dożywociem.** Okno może być przeniesione 5 razy w ciągu 10 s
+  (`PingPongLimit` / `PingPongWindowSeconds`); następne przeniesienie w tym czasie daje mu przerwę
+  (domyślnie 30 s — `max(15 s, 3 × okno czasowe)`), po której dostaje kolejną szansę. Dopiero trzecia
+  seria, po dwóch przerwach, kończy się odpuszczeniem okna do końca sesji. Osobny bezpiecznik chroni
+  przed walką z samą AIDA64: po 12 udanych korektach panelu w ciągu 10 s następuje 30 s przerwy.
 * **Czego nigdy nie ruszamy:** okien z właścicielem, `WS_EX_TOOLWINDOW`, bez tytułu,
-  zminimalizowanych, ukrytych przez DWM (`DWMWA_CLOAKED`), okien powłoki (`Progman`, `WorkerW`,
-  `Shell_TrayWnd`, menu Start, wyszukiwarka), okien UAC/`consent.exe`, okien procesów, których nie da
-  się odpytać (zwykle podniesione uprawnienia), samego SensorPanela, czegokolwiek z procesu AIDA64,
+  zminimalizowanych, ukrytych przez DWM (`DWMWA_CLOAKED`), okien powłoki, okien UAC/`consent.exe`,
+  okien procesów, których nie da się odpytać, samego SensorPanela, czegokolwiek z procesu AIDA64,
   okien pełnoekranowych oraz wszystkiego, gdy `SHQueryUserNotificationState` zgłasza tryb
-  pełnoekranowy D3D lub prezentacji (gra przechwytująca ekran zostaje w spokoju).
+  pełnoekranowy D3D lub prezentacji.
 
 ---
 
 ## Konfiguracja
 
-`%APPDATA%\SensorPanelGlue\config.json` — plik można edytować ręcznie, aplikacja zapisuje go
-atomowo (zapis do `.tmp` + podmiana).
+`%APPDATA%\SensorPanelGlue\config.json` — edytowalny ręcznie; zapisywany atomowo, przez losowy plik
+tymczasowy i zweryfikowany uchwyt. Ręcznie wpisane `null` są czyszczone przy wczytaniu.
 
 | Klucz | Znaczenie | Domyślnie |
 |---|---|---|
 | `PanelMonitorId` | Ścieżka urządzenia monitora SensorPanela | (puste) |
-| `HostMonitorId` | Monitor docelowy dla obcych okien; puste = systemowy główny | (puste) |
+| `HostMonitorId` | Monitor docelowy dla obcych okien; puste = główny ekran Windows | (puste) |
 | `PanelRule` | Reguła rozpoznania okna panelu: `ProcessName`, `ClassPattern`, `TitlePattern` (wzorce `*` i `?`) | `ProcessName` = `aida64`, `ClassPattern` = `*SensorPanel*`, `TitlePattern` puste |
 | `PanelGeometry` | Offset względem lewego górnego rogu monitora + rozmiar | uczy się sama |
-| `KeepPanelPosition` | Przywracaj zapisaną pozycję; wyłączone = pilnuj tylko właściwego ekranu | `true` |
+| `KeepPanelPosition` | Przywracaj zapisane miejsce; wyłączone = pilnuj tylko właściwego ekranu | `true` |
 | `RestorePanelSize` | Przywracaj też rozmiar | `false` |
-| `KeepPanelTopmost` | `WS_EX_TOPMOST` na panelu | `false` |
+| `KeepPanelTopmost` | `WS_EX_TOPMOST` na panelu (AIDA64 potrafi to zdejmować) | `false` |
 | `HidePanelFromAltTab` | Dodaj `WS_EX_TOOLWINDOW` | `false` |
 | `RelocateForeignWindows` | Przenoś obce okna z ekranu panelu | `true` |
 | `Exceptions` | Lista reguł okien, których nie ruszamy | `[]` |
 | `SafetyPollSeconds` | Interwał pollingu asekuracyjnego | `5` |
-| `EventDebounceMs` | Debounce zdarzeń okien | `150` |
+| `EventDebounceMs` | Odczekanie po zdarzeniu okna | `150` |
 | `DisplayChangeDelayMs` | Odczekanie po zmianie układu ekranów / wybudzeniu | `2000` |
-| `PingPongLimit` / `PingPongWindowSeconds` | Liczba dozwolonych przeniesień w oknie czasowym; kolejne dają oknu przerwę (domyślnie 30 s) | `5` / `10` |
+| `PingPongLimit` / `PingPongWindowSeconds` | Przeniesienia dozwolone w oknie czasowym; następne dają oknu przerwę | `5` / `10` |
 | `VerboseLogging` | Poziom `Debug` w logu | `false` |
 | `StartPaused` | Start w trybie wstrzymanym | `false` |
 
-**Reguła panelu w tej instalacji** (odczytana z uruchomionej AIDA64 Extreme v8.35.8400):
-klasa `TForm_HWMonitoringSensorPanel`, tytuł `SensorPanel`. Domyślny wzorzec klasy `*SensorPanel*` pasuje
-do niej i przetrwa ewentualną zmianę prefiksu w kolejnych wersjach AIDA64. Gdyby przestał pasować,
-użyj **Tryb diagnostyczny** z menu ikony — wypisze wszystkie okna procesu z klasą, tytułem, stylami
-i monitorem, i oznaczy to, które pasuje do reguły.
+**Reguła panelu w tej instalacji** (odczytana z AIDA64 Extreme v8.35.8400): klasa
+`TForm_HWMonitoringSensorPanel`, tytuł `SensorPanel`. Domyślny wzorzec `*SensorPanel*` pasuje do
+niej. Gdyby przestał, **SensorPanel → Zaawansowane → Pokaż okna AIDA64** wypisze wszystkie okna
+procesu i oznaczy to, które pasuje.
 
-Logi: `%APPDATA%\SensorPanelGlue\logs\sensorpanelglue.log` (rotacja 1 MB × 5 plików).
+Logi: `%APPDATA%\SensorPanelGlue\logs\sensorpanelglue.log` (rotacja 1 MB × 5 plików). Log zapisuje
+skrócone (60 znaków) tytuły okien, które program przenosi lub — przy szczegółowym logu — pomija.
 
 ---
 
-## Wyniki testów
+## Testy
 
-Mierzone na tym stanowisku: Windows 11 Pro 26220, AW3423DWF 3440×1440 @ 0,0 (główny) +
-eM713A 1024×600 @ 3440,0 (ekran panelu), AIDA64 Extreme v8.35.8400.
+```bash
+dotnet test tests/SensorPanelGlue.Tests/SensorPanelGlue.Tests.csproj
+```
+
+222 testy xUnit, bez potrzeby pulpitu: spójność układu monitorów (w tym incydent z monitorem
+zgłoszonym w (0,0)), anty-ping-pong z przerwami (incydent ze Steamem), arytmetyka terminów zegara,
+odmowa zapisu przez junction i hardlink, kontrola ACL (plik w `%TEMP%` odrzucony, `dotnet.exe` w
+`Program Files` przyjęty), wzorce, konfiguracja, log.
+
+### Pomiary na żywym sprzęcie
+
+Windows 11 Pro 26220, AW3423DWF 3440×1440 @ 0,0 (główny) + eM713A 1024×600 @ 3440,0 (ekran
+panelu), AIDA64 Extreme v8.35.8400. Pomiary silnika wykonane na wersji 1; wersja 2 zmieniła
+harmonogram i interfejs, a tych pomiarów jeszcze nie powtórzono.
 
 | Test | Wynik |
 |---|---|
-| Build `Release` | 0 błędów, 0 ostrzeżeń |
 | Wykrycie monitorów po ścieżce urządzenia | 2/2, ze stabilnymi identyfikatorami i DPI |
-| Wykrycie okna SensorPanela | `TForm_HWMonitoringSensorPanel` / `SensorPanel`, znalezione w 100 ms od startu |
-| Wykrycie braku uprawnień do okna AIDA64 | zgłoszone przy starcie, bez wyjątku i bez wymuszania UAC |
-| Powrót „panelu" na miejsce po ręcznym przesunięciu | 197 / 180 / 182 ms (średnio **186 ms**) |
+| Wykrycie okna SensorPanela | znalezione w 100 ms od startu |
+| Wykrycie braku uprawnień do okna AIDA64 | zgłoszone przy starcie, bez wymuszania UAC |
+| Powrót panelu na miejsce po ręcznym przesunięciu | średnio **186 ms** (197 / 180 / 182) |
 | Przeniesienie Notatnika z ekranu panelu na główny | **234 ms**, pozycja względna zachowana |
-| Anty-ping-pong (pomiar historyczny, limit 3 — zastąpiony zachowaniem z wiersza „z przerwami" poniżej) | rezygnacja dokładnie po 3 przeniesieniach w 10 s, wpis `WARN` w logu |
-| Okno z listy wyjątków | zostało na ekranie panelu przez cały test |
-| Docelowy monitor niedostępny | stan „czekam", panel nietknięty, jedno ostrzeżenie w logu, brak awarii |
-| Fizyczne odpięcie i podpięcie monitora panelu | oba `WM_DISPLAYCHANGE` wykryte, w trakcie odpięcia panel nietknięty, monitor rozpoznany po ścieżce urządzenia bez ponownego wyboru |
-| Powrót panelu po hot-plugu (instancja z uprawnieniami) | znaleziony na `{X=0,Y=0}` i przywrócony na eM713A w **3 ms** |
-| Okno konfiguracji | wszystkie 4 zakładki konstruują się i renderują, układ sprawdzony na zrzutach |
-| XML zadania Harmonogramu | `RunLevel=HighestAvailable`, `LogonType=InteractiveToken`, poprawny UserId i ścieżka; `schtasks` przyjął plik i odrzucił dopiero na braku uprawnień |
-| Odczyt bieżącego trybu autostartu | 54 ms, bez blokowania interfejsu |
-| Pełny restart Windows | zadanie wystartowało aplikację 37 s po boocie, z uprawnieniami; panel bez żadnej ingerencji znalazł się na eM713A |
-| Fałszywe współrzędne monitora (regresja z 06.09.2026) | układ z monitorem pomocniczym zgłoszonym w (0,0) rozpoznany jako przejściowy; miejsce docelowe `{-5,0}` odrzucone jako leżące na ekranie głównym; klony, pojedynczy monitor w (0,0) i normalny układ nadal przechodzą |
-| Anty-ping-pong z przerwami (regresja z 06.09.2026) | seria 6 przeniesień → przerwa zamiast rezygnacji; po przerwie okno dostaje kolejną szansę; dopiero po 3 przerwach trafia na listę problemów; `Wyczyść` zwalnia je z powrotem |
-| Przenoszenie okna zmaksymalizowanego (Steam) | okno `SDL_app` 3440×1392 wypchnięte na ekran sensora wróciło na główny w **254 ms**, nadal zmaksymalizowane |
-| Zużycie CPU w spoczynku (90 s) | 109 ms CPU → **0,12% jednego rdzenia**, 0,008% całego CPU (16 rdzeni) |
+| Przenoszenie okna zmaksymalizowanego (Steam) | **254 ms**, nadal zmaksymalizowane |
+| Okno z listy wyjątków | zostało na ekranie panelu |
+| Docelowy monitor niedostępny | stan „czekam", panel nietknięty, brak awarii |
+| Fizyczne odpięcie i podpięcie monitora panelu | oba `WM_DISPLAYCHANGE` wykryte, monitor rozpoznany bez ponownego wyboru, panel przywrócony |
+| Pełny restart Windows | zadanie wystartowało aplikację 37 s po boocie, z uprawnieniami; panel na eM713A |
+| Zużycie CPU w spoczynku (90 s) | **0,12% jednego rdzenia** |
 | Pamięć w spoczynku | 69 MB working set / 28 MB prywatnej |
 
-Pomiar czasu powrotu panelu wykonany na oknie zastępczym bez podniesionych uprawnień (Notatnik
-podstawiony pod regułę panelu), ponieważ okna samej AIDA64 są dla nieelewowanego procesu
-niedostępne — patrz sekcja o uprawnieniach.
-
-Hot-plug został potwierdzony na żywym sprzęcie: po wypięciu kabla aplikacja wykryła
-`WM_DISPLAYCHANGE`, przeszła w stan „czekam" i nie przeniosła panelu na zastępczy ekran; po
-podpięciu rozpoznała ten sam monitor po ścieżce urządzenia bez ponownej konfiguracji. Windows w
-międzyczasie przeniósł panel na ekran główny i tam go zostawił — instancja bez uprawnień nie mogła
-go ściągnąć z powrotem, instancja z uprawnieniami zrobiła to w 3 ms od startu. To najlepsza możliwa
-ilustracja tego, dlaczego elewacja ma tu znaczenie.
+W wersji 2 sprawdzone: build bez ostrzeżeń, 222 testy, interfejs na zrzutach w trybie jasnym i
+ciemnym na żywych danych z monitorów, nowy zegar w działaniu (puls co 5 minut z wersji z poprawkami
+bezpieczeństwa).
 
 ---
 
 ## Znane ograniczenia
 
-1. **Okna procesów z wyższymi uprawnieniami** (w tym sama AIDA64) są nieruszalne bez elewacji —
-   opisane wyżej. To ograniczenie Windows (UIPI), nie do obejścia bez podniesienia uprawnień.
-2. **Gry w trybie pełnoekranowym wyłącznym** są celowo pomijane. Przesuwanie okna gry, która
-   przechwyciła ekran, kończy się zwykle utratą fokusu albo przełączeniem w tryb okienkowy.
-3. **Okno mignie, zanim zostanie przeniesione.** Reakcja trwa ~0,2 s — tyle, ile potrzeba na
-   zdarzenie systemowe plus debounce. Da się to skrócić (`EventDebounceMs`), kosztem większej liczby
-   zbędnych przebiegów przy przeciąganiu okien.
-4. **Aplikacje, które same wymuszają swoją pozycję**, po trzech seriach przeniesień (dwóch przerwach) zostają zostawione w spokoju
-   — zobaczysz je na liście w zakładce *Inne okna*. To celowe: alternatywą jest nieskończona pętla.
-5. **Autostart przez rejestr nie podnosi uprawnień** — jeśli AIDA64 działa jako administrator,
-   użyj trybu „Harmonogram zadań", inaczej po restarcie systemu panel nie będzie pilnowany.
-6. **Wiele monitorów sklonowanych** dzieli jedno źródło GDI; aplikacja bierze pierwszą aktywną
-   ścieżkę i traktuje klon jako jeden ekran.
+1. **Okna procesów z wyższymi uprawnieniami** (w tym sama AIDA64) są nieruszalne bez elewacji.
+   To ograniczenie Windows (UIPI).
+2. **Gry w trybie pełnoekranowym wyłącznym** są celowo pomijane.
+3. **Okno mignie, zanim zostanie przeniesione** — reakcja trwa ~0,2 s.
+4. **Aplikacje, które same wymuszają swoją pozycję**, po trzech seriach przeniesień zostają
+   zostawione w spokoju — widać je na stronie **Inne okna**.
+5. **Autostart bez uprawnień administratora nie pilnuje panelu**, jeśli AIDA64 działa jako
+   administrator.
+6. **„Zawsze na wierzchu" bywa zdejmowane przez AIDA64** — pewniej włączyć tę opcję w AIDA64.
+7. **Wiele monitorów sklonowanych** traktowanych jest jako jeden ekran.
 
 ---
 
@@ -313,25 +336,24 @@ ilustracja tego, dlaczego elewacja ma tu znaczenie.
 
 ```
 src/SensorPanelGlue/
-  Program.cs                  single instance, logger, obsługa wyjątków, pętla aplikacji
-  app.manifest                PerMonitorV2 DPI, asInvoker
-  app.ico                     ikona programu (16-256 px), generowana z UI/IconArtwork.cs
-  Interop/                    P/Invoke: NativeMethods (user32, shcore, kernel32, shell32, wtsapi32),
-                              DwmInterop (dwmapi), DisplayConfigInterop (CCD, QueryDisplayConfig)
-  Monitors/                   MonitorRegistry — stabilne ID monitorów, mapowanie prostokątów; MonitorInfo
-  Windows/                    WindowQuery/WindowInfo (odczyt okien), WindowFilter, WindowMover,
-                              PingPongGuard, Wildcard
-  Core/                       GlueService (orkiestracja), ServiceStatus, WinEventListener (hooki),
-                              SystemEventWindow (zdarzenia systemowe), Elevation
-  Config/                     AppConfig (model), ConfigStore (zapis/odczyt JSON), AutoStart
-  Diagnostics/                Logger — log rotacyjny z throttlingiem
-  UI/                         TrayApplicationContext (ikona zasobnika), ConfigForm (okno konfiguracji),
-                              MonitorIdentifyOverlay („Identyfikuj"), IconArtwork, AppIcon
+  Program.cs              pojedyncza instancja, log, pętla WPF z motywem Fluent
+  app.manifest            PerMonitorV2 DPI, asInvoker
+  app.ico                 ikona (16-256 px), generowana z UI/IconArtwork.cs
+  Interop/                P/Invoke: NativeMethods, DwmInterop, DisplayConfigInterop (CCD), FileInterop
+  Monitors/               MonitorRegistry (stabilne ID, geometria, spójność układu), MonitorInfo
+  Windows/                WindowQuery/WindowInfo, WindowFilter, WindowMover, PingPongGuard, Wildcard
+  Core/                   GlueService (silnik), LoopClock (zegar terminów), WinEventListener,
+                          SystemEventWindow, Elevation, ServiceStatus
+  Config/                 AppConfig, ConfigStore, AutoStart (API COM Harmonogramu), ExecutableTrust (ACL)
+  Diagnostics/            Logger, SafeDirectory (zapis odporny na dowiązania)
+  UI/                     SettingsWindow + Pages/ (strony), SettingsViewModel, MonitorMap (mapa),
+                          TrayController (zasobnik), IdentifyWindow, DiagnosticsWindow,
+                          Theme.xaml (przełącznik, karty, InfoBar, rozwijane karty), AppIcon, IconArtwork
+tests/SensorPanelGlue.Tests/   xUnit
+scripts/Install.ps1            instalacja do Program Files i przestawienie zadania
 ```
 
-Ikona jest zdefiniowana raz, w `UI/IconArtwork.cs`, jako rysunek proporcjonalny do rozmiaru.
-`app.ico` (16, 20, 24, 32, 40, 48, 64, 128, 256 px) jest z niego wygenerowany i wchodzi do projektu
-dwa razy: jako `ApplicationIcon` pliku wykonywalnego i jako zasób osadzony, z którego program
-pobiera ikonę okien (32 px) oraz zasobnika w rozmiarze żądanym przez powłokę. Wariant wstrzymany —
-ten sam znak w szarości — rysowany jest w locie, bo występuje wyłącznie w zasobniku. Po zmianie
-rysunku trzeba wygenerować `app.ico` ponownie.
+Ikona jest zdefiniowana raz, w `UI/IconArtwork.cs`, jako rysunek proporcjonalny do rozmiaru;
+`app.ico` jest z niego wygenerowany i wchodzi do projektu jako ikona pliku wykonywalnego i jako
+zasób, z którego program bierze ikonę okien i zasobnika. Po zmianie rysunku trzeba wygenerować
+`app.ico` ponownie.
