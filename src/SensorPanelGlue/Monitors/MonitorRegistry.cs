@@ -19,6 +19,14 @@ public sealed class MonitorRegistry
         _log = log;
     }
 
+    /// <summary>A registry over a fixed monitor list, for exercising the geometry without real displays.</summary>
+    internal MonitorRegistry(Logger log, IReadOnlyList<MonitorInfo> monitors)
+        : this(log)
+    {
+        _monitors = monitors;
+        LayoutIsConsistent = CheckConsistency(monitors);
+    }
+
     public IReadOnlyList<MonitorInfo> Monitors => _monitors;
 
     /// <summary>
@@ -95,7 +103,7 @@ public sealed class MonitorRegistry
         LogIfChanged(previous, result);
     }
 
-    private static bool CheckConsistency(IReadOnlyList<MonitorInfo> monitors)
+    internal static bool CheckConsistency(IReadOnlyList<MonitorInfo> monitors)
     {
         if (monitors.Count == 0)
         {

@@ -1,5 +1,5 @@
-using System.Runtime.InteropServices;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
 using SensorPanelGlue.Config;
@@ -7,25 +7,32 @@ using SensorPanelGlue.Diagnostics;
 using SensorPanelGlue.Monitors;
 using SensorPanelGlue.Windows;
 using static SensorPanelGlue.Interop.NativeMethods;
-using Timer = System.Windows.Forms.Timer;
 
 namespace SensorPanelGlue.Core;
 
 /// <summary>
-/// Owns the whole enforcement loop: WinEvent hooks feed a debounced queue, a low-frequency safety
-/// poll acts as a net, and display/power/session events trigger a delayed full sweep.
+/// Owns the whole enforcement loop. WinEvent hooks feed a coalesced queue, display/power/session
+/// events schedule a delayed full sweep, and a low-frequency safety poll catches anything missed.
+/// All three are deadlines served by one <see cref="LoopClock"/>; a separate thread-pool watchdog
+/// reports if the UI thread stops serving them at all.
 /// </summary>
 public sealed class GlueService : IDisposable
 {
     private const int PanelPositionTolerance = 2;
     private const int SelfMoveSuppressionMs = 400;
-    private const int PostMoveRecheckMs = 700;
-    private const int PanelBackoffMoves = 12;
+    private const int PanelBackoffCorrections = 12;
+    private const int StyleMaxFailures = 3;
+    private const int TopmostReapplyWarnAfter = 5;
+
+    private static readonly TimeSpan PostMoveRecheck = TimeSpan.FromMilliseconds(700);
+    private static readonly TimeSpan MaxEventWait = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan MaxLayoutDefer = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan PanelBackoffWindow = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan PanelBackoffDuration = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan TopmostRetryInterval = TimeSpan.FromSeconds(30);
-    private const int TopmostMaxFailures = 3;
-    private const int TopmostReapplyWarnAfter = 5;
+    private static readonly TimeSpan StyleRetryInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan WatchdogInterval = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan MinimumStall = TimeSpan.FromSeconds(30);
 
     private readonly Logger _log;
     private readonly ConfigStore _store;
@@ -36,76 +43,73 @@ public sealed class GlueService : IDisposable
 
     private readonly HashSet<IntPtr> _pending = new();
     private readonly Dictionary<IntPtr, DateTime> _selfMoved = new();
-    private readonly Timer _debounceTimer;
-    private readonly Timer _safetyTimer;
-    private readonly Timer _layoutDelayTimer;
-    private readonly Timer _recheckTimer;
     private readonly List<IntPtr> _recheckQueue = new();
 
+    private LoopClock? _clock;
+    private System.Threading.Timer? _watchdog;
     private WinEventListener? _listener;
     private SystemEventWindow? _systemEvents;
 
     private AppConfig _config;
-    private IntPtr _panelHwnd = IntPtr.Zero;
     private bool _paused;
     private bool _started;
-    private bool _panelAccessDenied;
+
+    // Deadlines, all UTC and all owned by the UI thread.
+    private DateTime _pendingFirstUtc = DateTime.MaxValue;
+    private DateTime _pendingLastUtc = DateTime.MaxValue;
+    private DateTime _layoutFirstUtc = DateTime.MaxValue;
+    private DateTime _sweepDueUtc = DateTime.MaxValue;
+    private DateTime _recheckDueUtc = DateTime.MaxValue;
+    private DateTime _pollDueUtc = DateTime.MaxValue;
+
+    // Read by the watchdog thread.
+    private long _lastTickUtcTicks = DateTime.UtcNow.Ticks;
+    private long _pollIntervalTicks;
+    private int _stallReported;
+
+    private IntPtr _panelHwnd = IntPtr.Zero;
     private IntPtr _probedPanel = IntPtr.Zero;
-    private int _panelMoveCount;
-    private DateTime _panelMoveWindowStart = DateTime.UtcNow;
+    private bool _panelAccessDenied;
+    private int _panelCorrections;
+    private DateTime _panelCorrectionWindowStart = DateTime.UtcNow;
+    private DateTime _panelBackoffUntil = DateTime.MinValue;
     private DateTime _lastHeartbeat = DateTime.MinValue;
+
     private DateTime _lastTopmostAttempt = DateTime.MinValue;
     private int _topmostFailures;
     private int _topmostReapplications;
     private bool _topmostGivenUp;
-    private DateTime _panelBackoffUntil = DateTime.MinValue;
+    private DateTime _lastAltTabAttempt = DateTime.MinValue;
+    private int _altTabFailures;
+    private bool _altTabGivenUp;
+
     private ServiceStatus _status = new(ServiceState.Stopped, "Nie uruchomiono.");
 
     public GlueService(Logger log, ConfigStore store, AppConfig config)
     {
         _log = log;
         _store = store;
-        _config = config;
+        _config = config.Clone();
 
         _monitors = new MonitorRegistry(log);
         _mover = new WindowMover(log);
         _filter = new WindowFilter((uint)Environment.ProcessId);
         _guard = new PingPongGuard(log)
         {
-            Limit = config.PingPongLimit,
-            Window = TimeSpan.FromSeconds(config.PingPongWindowSeconds),
+            Limit = _config.PingPongLimit,
+            Window = TimeSpan.FromSeconds(_config.PingPongWindowSeconds),
         };
 
-        _debounceTimer = new Timer { Interval = config.EventDebounceMs };
-        _debounceTimer.Tick += (_, _) => ProcessPending();
-
-        _safetyTimer = new Timer { Interval = config.SafetyPollSeconds * 1000 };
-        _safetyTimer.Tick += (_, _) => FullSweep("poll bezpieczeństwa", verbose: false);
-
-        _layoutDelayTimer = new Timer { Interval = Math.Max(1, config.DisplayChangeDelayMs) };
-        _layoutDelayTimer.Tick += (_, _) =>
-        {
-            _layoutDelayTimer.Stop();
-            WindowQuery.InvalidateProcessCache();
-            FullSweep("po zmianie układu ekranów", verbose: true);
-        };
-
-        _recheckTimer = new Timer { Interval = PostMoveRecheckMs };
-        _recheckTimer.Tick += (_, _) =>
-        {
-            _recheckTimer.Stop();
-            var handles = _recheckQueue.ToArray();
-            _recheckQueue.Clear();
-            foreach (var handle in handles)
-            {
-                HandleForeignWindow(handle);
-            }
-        };
+        _pollIntervalTicks = PollInterval.Ticks;
     }
 
     public event EventHandler<ServiceStatus>? StatusChanged;
 
-    public AppConfig Config => _config;
+    /// <summary>
+    /// A copy. The configuration window used to write draft values straight into the running
+    /// configuration, so pressing Cancel left an abandoned panel rule live - and sometimes on disk.
+    /// </summary>
+    public AppConfig Config => _config.Clone();
 
     public MonitorRegistry Monitors => _monitors;
 
@@ -121,6 +125,8 @@ public sealed class GlueService : IDisposable
     /// </summary>
     public bool PanelAccessDenied => _panelAccessDenied;
 
+    private TimeSpan PollInterval => TimeSpan.FromSeconds(_config.SafetyPollSeconds);
+
     public void Start()
     {
         if (_started)
@@ -131,6 +137,11 @@ public sealed class GlueService : IDisposable
         _started = true;
         _paused = _config.StartPaused;
 
+        // Posting needs a WinForms context bound to this (the UI) thread.
+        var ui = SynchronizationContext.Current as WindowsFormsSynchronizationContext
+                 ?? new WindowsFormsSynchronizationContext();
+        _clock = new LoopClock(ui, OnTick);
+
         // MonitorRegistry logs the layout itself whenever it changes, including this first read.
         _monitors.Refresh();
 
@@ -138,8 +149,12 @@ public sealed class GlueService : IDisposable
         _listener = new WinEventListener(_log, OnWindowEvent);
         _listener.Start();
 
-        _safetyTimer.Start();
+        Volatile.Write(ref _lastTickUtcTicks, DateTime.UtcNow.Ticks);
+        _watchdog = new System.Threading.Timer(Watch, null, WatchdogInterval, WatchdogInterval);
+
         FullSweep("start aplikacji", verbose: true);
+        _pollDueUtc = DateTime.UtcNow + PollInterval;
+        ScheduleNext();
 
         _log.Info(_paused ? "Uruchomiono w trybie wstrzymanym." : "Uruchomiono.");
     }
@@ -156,6 +171,7 @@ public sealed class GlueService : IDisposable
 
         if (paused)
         {
+            ClearPending();
             UpdateStatus(ServiceState.Paused, "Wstrzymane przez użytkownika.");
         }
         else
@@ -168,53 +184,56 @@ public sealed class GlueService : IDisposable
     {
         WindowQuery.InvalidateProcessCache();
         _panelBackoffUntil = DateTime.MinValue;
-        _panelMoveCount = 0;
+        _panelCorrections = 0;
         FullSweep("wymuszenie ręczne", verbose: true);
     }
 
     public void ApplyConfig(AppConfig config)
     {
-        _config = config;
-        _log.MinimumLevel = config.VerboseLogging ? LogLevel.Debug : LogLevel.Info;
+        _config = config.Clone();
+        _log.MinimumLevel = _config.VerboseLogging ? LogLevel.Debug : LogLevel.Info;
 
-        _guard.Limit = config.PingPongLimit;
-        _guard.Window = TimeSpan.FromSeconds(config.PingPongWindowSeconds);
-
-        _debounceTimer.Interval = config.EventDebounceMs;
-        _safetyTimer.Interval = config.SafetyPollSeconds * 1000;
-        _layoutDelayTimer.Interval = Math.Max(1, config.DisplayChangeDelayMs);
+        _guard.Limit = _config.PingPongLimit;
+        _guard.Window = TimeSpan.FromSeconds(_config.PingPongWindowSeconds);
+        Volatile.Write(ref _pollIntervalTicks, PollInterval.Ticks);
 
         _panelHwnd = IntPtr.Zero;
         _probedPanel = IntPtr.Zero;
-        ResetTopmostState();
+        ResetStyleState();
         _log.ResetThrottle("panel-missing");
         _log.ResetThrottle("monitor-missing");
 
         FullSweep("zmiana konfiguracji", verbose: true);
+        _pollDueUtc = DateTime.UtcNow + PollInterval;
+        ScheduleNext();
     }
 
     /// <summary>
-    /// Stores the panel's current position as the target, expressed relative to its monitor.
+    /// Measures where the panel currently sits, relative to its monitor, using
+    /// <paramref name="rule"/> to find it. Changes nothing - neither the running configuration nor
+    /// the file; the caller decides whether to keep the result.
     /// </summary>
-    public bool CaptureCurrentPanelGeometry(out string message)
+    public bool TryMeasurePanel(WindowRule rule, out MonitorInfo? monitor, out PanelGeometry geometry, out string message)
     {
         _monitors.Refresh();
-        var panel = ResolvePanel();
+        monitor = null;
+        geometry = new PanelGeometry();
+
+        var panel = FindPanel(rule);
         if (panel is null)
         {
             message = "Nie znaleziono okna SensorPanel. Uruchom AIDA64 i włącz SensorPanel.";
             return false;
         }
 
-        var monitor = _monitors.FromRect(panel.Rect);
+        monitor = _monitors.FromRect(panel.Rect);
         if (monitor is null)
         {
             message = "Nie udało się ustalić monitora, na którym znajduje się panel.";
             return false;
         }
 
-        _config.PanelMonitorId = monitor.StableId;
-        _config.PanelGeometry = new PanelGeometry
+        geometry = new PanelGeometry
         {
             OffsetX = panel.Rect.X - monitor.Bounds.X,
             OffsetY = panel.Rect.Y - monitor.Bounds.Y,
@@ -222,16 +241,12 @@ public sealed class GlueService : IDisposable
             Height = panel.Rect.Height,
         };
 
-        _store.Save(_config);
-        _log.Info($"Zapisano pozycję panelu: {_config.PanelGeometry.OffsetX},{_config.PanelGeometry.OffsetY} "
-                  + $"({_config.PanelGeometry.Width}x{_config.PanelGeometry.Height}) na {monitor.FriendlyName}.");
-
-        message = $"Zapisano pozycję panelu na ekranie „{monitor.FriendlyName}”.";
+        message = $"Zmierzono pozycję panelu na ekranie „{monitor.FriendlyName}”.";
         return true;
     }
 
-    /// <summary>Dumps every top-level window of the AIDA64 process to the log.</summary>
-    public string RunDiagnostics()
+    /// <summary>Dumps every top-level window of the process named by <paramref name="rule"/> to the log.</summary>
+    public string RunDiagnostics(WindowRule rule)
     {
         _monitors.Refresh();
         var sb = new StringBuilder();
@@ -245,10 +260,7 @@ public sealed class GlueService : IDisposable
                           + $"| primary={monitor.IsPrimary} | id={monitor.StableId}");
         }
 
-        var processFilter = string.IsNullOrWhiteSpace(_config.PanelRule.ProcessName)
-            ? "aida64"
-            : _config.PanelRule.ProcessName.Trim();
-
+        var processFilter = string.IsNullOrWhiteSpace(rule.ProcessName) ? "aida64" : rule.ProcessName.Trim();
         sb.AppendLine($"Okna procesu pasującego do „{processFilter}”:");
 
         var windows = WindowQuery.EnumerateTopLevel(info => Wildcard.IsMatch(info.ProcessName, processFilter));
@@ -260,7 +272,7 @@ public sealed class GlueService : IDisposable
         foreach (var info in windows)
         {
             var monitor = _monitors.FromRect(info.Rect);
-            var matches = WindowQuery.Matches(info, _config.PanelRule) ? " <== PASUJE DO REGUŁY" : string.Empty;
+            var matches = WindowQuery.Matches(info, rule) ? " <== PASUJE DO REGUŁY" : string.Empty;
             sb.AppendLine(
                 $"  hwnd=0x{info.Handle.ToInt64():X} vis={info.IsVisible} owner=0x{info.Owner.ToInt64():X} "
                 + $"style=0x{info.Style:X8} ex=0x{info.ExStyle:X8} rect={info.Rect} "
@@ -278,30 +290,141 @@ public sealed class GlueService : IDisposable
 
     public void Dispose()
     {
-        _debounceTimer.Stop();
-        _safetyTimer.Stop();
-        _layoutDelayTimer.Stop();
-        _recheckTimer.Stop();
-
-        _debounceTimer.Dispose();
-        _safetyTimer.Dispose();
-        _layoutDelayTimer.Dispose();
-        _recheckTimer.Dispose();
-
+        // Stop the sources first, so nothing can schedule work on a clock being torn down.
         _listener?.Dispose();
         _systemEvents?.Dispose();
+        _watchdog?.Dispose();
+        _clock?.Dispose();
         _started = false;
+    }
+
+    // ---------------------------------------------------------------- scheduling
+
+    private void OnTick()
+    {
+        var now = DateTime.UtcNow;
+        Volatile.Write(ref _lastTickUtcTicks, now.Ticks);
+
+        if (Interlocked.Exchange(ref _stallReported, 0) == 1)
+        {
+            _log.Info("Pętla główna znów reaguje.");
+        }
+
+        try
+        {
+            if (_pending.Count > 0 && now >= PendingDue())
+            {
+                ProcessPending();
+            }
+
+            if (now >= _sweepDueUtc)
+            {
+                _sweepDueUtc = DateTime.MaxValue;
+                _layoutFirstUtc = DateTime.MaxValue;
+                WindowQuery.InvalidateProcessCache();
+                FullSweep("po zmianie układu ekranów", verbose: true);
+            }
+
+            if (now >= _recheckDueUtc)
+            {
+                _recheckDueUtc = DateTime.MaxValue;
+                RunRechecks();
+            }
+
+            if (now >= _pollDueUtc)
+            {
+                _pollDueUtc = now + PollInterval;
+                FullSweep("poll bezpieczeństwa", verbose: false);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Error("Błąd w pętli głównej.", ex);
+        }
+        finally
+        {
+            // Whatever happened, the next deadline must stay armed: a lost tick must not be lost forever.
+            ScheduleNext();
+        }
+    }
+
+    private void ScheduleNext()
+    {
+        var next = _pollDueUtc;
+        if (_pending.Count > 0)
+        {
+            next = Earlier(next, PendingDue());
+        }
+
+        next = Earlier(next, _sweepDueUtc);
+        next = Earlier(next, _recheckDueUtc);
+        _clock?.WakeAt(next);
+    }
+
+    private DateTime PendingDue() =>
+        Debounce.DueAt(_pendingFirstUtc, _pendingLastUtc, TimeSpan.FromMilliseconds(_config.EventDebounceMs), MaxEventWait);
+
+    private static DateTime Earlier(DateTime a, DateTime b) => a <= b ? a : b;
+
+    /// <summary>
+    /// Runs on a thread-pool thread, outside the UI message queue, so it keeps working when the
+    /// loop itself is starved or stuck - the one situation the loop cannot report on its own.
+    /// </summary>
+    private void Watch(object? state)
+    {
+        try
+        {
+            var last = new DateTime(Volatile.Read(ref _lastTickUtcTicks), DateTimeKind.Utc);
+            var silent = DateTime.UtcNow - last;
+            var limit = TimeSpan.FromTicks(Math.Max(MinimumStall.Ticks, 3 * Volatile.Read(ref _pollIntervalTicks)));
+
+            if (silent > limit && Interlocked.Exchange(ref _stallReported, 1) == 0)
+            {
+                _log.Warn($"Pętla główna nie odpowiada od {silent.TotalSeconds:0} s — zdarzenia okien "
+                          + "i zmiany ekranów nie są w tym czasie obsługiwane.");
+            }
+        }
+        catch (Exception)
+        {
+            // The watchdog must never take the process down.
+        }
     }
 
     // ---------------------------------------------------------------- events
 
     private void OnLayoutEvent(string reason)
     {
-        _log.Info("Zdarzenie systemowe: " + reason + " — zaplanowano pełne wymuszenie.");
-        _layoutDelayTimer.Stop();
-        _layoutDelayTimer.Start();
+        try
+        {
+            if (_paused)
+            {
+                _log.Info("Zdarzenie systemowe: " + reason + " — pilnowanie wstrzymane, pomijam.");
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            if (_layoutFirstUtc == DateTime.MaxValue)
+            {
+                _layoutFirstUtc = now;
+            }
+
+            // A burst of display changes is handled once it settles, but never deferred indefinitely.
+            _sweepDueUtc = Debounce.DueAt(
+                _layoutFirstUtc, now, TimeSpan.FromMilliseconds(_config.DisplayChangeDelayMs), MaxLayoutDefer);
+
+            _log.Info($"Zdarzenie systemowe: {reason} — pełne wymuszenie o {_sweepDueUtc.ToLocalTime():HH:mm:ss.fff}.");
+            _clock?.WakeAt(_sweepDueUtc);
+        }
+        catch (Exception ex)
+        {
+            _log.Error("Nie udało się zaplanować wymuszenia po zdarzeniu systemowym.", ex);
+        }
     }
 
+    /// <summary>
+    /// Hook callback. Runs once per window event, possibly thousands of times a second, so it does
+    /// nothing but record the handle and make sure a tick is armed.
+    /// </summary>
     private void OnWindowEvent(uint eventType, IntPtr hwnd)
     {
         if (_paused)
@@ -314,49 +437,68 @@ public sealed class GlueService : IDisposable
             return;
         }
 
+        var now = DateTime.UtcNow;
         _pending.Add(hwnd);
+        if (_pendingFirstUtc == DateTime.MaxValue)
+        {
+            _pendingFirstUtc = now;
+        }
 
-        // Restarting the timer coalesces bursts (a drag produces hundreds of events).
-        _debounceTimer.Stop();
-        _debounceTimer.Start();
+        _pendingLastUtc = now;
+        _clock?.WakeAt(PendingDue());
+    }
+
+    private void ClearPending()
+    {
+        _pending.Clear();
+        _pendingFirstUtc = DateTime.MaxValue;
+        _pendingLastUtc = DateTime.MaxValue;
     }
 
     private void ProcessPending()
     {
-        _debounceTimer.Stop();
-
         if (_paused)
         {
-            _pending.Clear();
+            ClearPending();
             return;
         }
 
         var handles = _pending.ToArray();
-        _pending.Clear();
+        ClearPending();
 
         var panelTouched = false;
 
         foreach (var hwnd in handles)
         {
-            if (hwnd == _panelHwnd)
+            // One bad window must not cost the rest of the batch - or the panel check after it.
+            try
             {
-                panelTouched = true;
-                continue;
-            }
+                if (hwnd == _panelHwnd)
+                {
+                    panelTouched = true;
+                    continue;
+                }
 
-            var info = WindowQuery.Get(hwnd);
-            if (info is null)
+                var info = WindowQuery.Get(hwnd);
+                if (info is null)
+                {
+                    continue;
+                }
+
+                // Checked whatever the cached handle says: when AIDA64 recreates the panel, the cache
+                // still holds the dead handle, and the new window would wait for the next poll.
+                if (WindowQuery.Matches(info, _config.PanelRule))
+                {
+                    panelTouched = true;
+                    continue;
+                }
+
+                HandleForeignWindow(hwnd);
+            }
+            catch (Exception ex)
             {
-                continue;
+                _log.Error($"Błąd przy obsłudze okna 0x{hwnd.ToInt64():X}.", ex);
             }
-
-            if (_panelHwnd == IntPtr.Zero && WindowQuery.Matches(info, _config.PanelRule))
-            {
-                panelTouched = true;
-                continue;
-            }
-
-            HandleForeignWindow(hwnd);
         }
 
         if (panelTouched || _panelHwnd == IntPtr.Zero)
@@ -377,6 +519,10 @@ public sealed class GlueService : IDisposable
         if (_paused)
         {
             UpdateStatus(ServiceState.Paused, "Wstrzymane przez użytkownika.");
+            _log.Debug("Pominięto wymuszenie układu (" + reason + ") — pilnowanie wstrzymane.");
+
+            // The pulse matters most here: a paused service is otherwise completely silent.
+            Heartbeat();
             return;
         }
 
@@ -384,6 +530,7 @@ public sealed class GlueService : IDisposable
         {
             _monitors.Refresh();
             _guard.Prune(IsWindow);
+            PruneSelfMoved();
 
             if (verbose)
             {
@@ -425,7 +572,7 @@ public sealed class GlueService : IDisposable
             $"Puls: monitory={_monitors.Monitors.Count} spójny={_monitors.LayoutIsConsistent} "
             + $"ekran docelowy={(target is null ? "brak" : target.Bounds.ToString())} "
             + $"panel={(panel is null ? "nie znaleziony" : panel.Rect.ToString())} "
-            + $"stan={_status.ShortText}");
+            + $"stan={_status.ShortText} utracone wpisy logu={_log.DroppedLines}");
     }
 
     private void EnforcePanel()
@@ -519,7 +666,7 @@ public sealed class GlueService : IDisposable
 
         if (needsMove)
         {
-            if (IsPanelBackedOff())
+            if (DateTime.UtcNow < _panelBackoffUntil)
             {
                 UpdateStatus(ServiceState.Active, "Panel wraca sam — chwilowa przerwa w korygowaniu.");
                 return;
@@ -534,6 +681,7 @@ public sealed class GlueService : IDisposable
                 case MoveOutcome.Success:
                     SetPanelAccessDenied(false);
                     _log.Info($"Przywrócono SensorPanel na „{target.FriendlyName}” do {desired}.");
+                    RecordPanelCorrection();
                     break;
 
                 case MoveOutcome.AccessDenied:
@@ -594,9 +742,7 @@ public sealed class GlueService : IDisposable
 
         if (_config.HidePanelFromAltTab && (panel.ExStyle & WS_EX_TOOLWINDOW) == 0)
         {
-            var updated = (panel.ExStyle | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW;
-            SetWindowLongPtr(panel.Handle, GWL_EXSTYLE, new IntPtr(updated));
-            _log.Debug("Ukryto SensorPanel z Alt+Tab.");
+            TryHidePanelFromAltTab(panel);
         }
     }
 
@@ -607,18 +753,12 @@ public sealed class GlueService : IDisposable
     /// </summary>
     private void TrySetPanelTopmost(WindowInfo panel)
     {
-        if (_topmostGivenUp)
+        if (_topmostGivenUp || DateTime.UtcNow - _lastTopmostAttempt < StyleRetryInterval)
         {
             return;
         }
 
-        var now = DateTime.UtcNow;
-        if (now - _lastTopmostAttempt < TopmostRetryInterval)
-        {
-            return;
-        }
-
-        _lastTopmostAttempt = now;
+        _lastTopmostAttempt = DateTime.UtcNow;
         MarkSelfMoved(panel.Handle);
 
         if (!SetWindowPos(panel.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE))
@@ -647,7 +787,7 @@ public sealed class GlueService : IDisposable
         }
 
         _topmostFailures++;
-        if (_topmostFailures < TopmostMaxFailures)
+        if (_topmostFailures < StyleMaxFailures)
         {
             return;
         }
@@ -659,11 +799,52 @@ public sealed class GlueService : IDisposable
             + "(ustawienia SensorPanel), albo odznacz ją w SensorPanelGlue.");
     }
 
-    private void ResetTopmostState()
+    /// <summary>
+    /// Same verify-and-give-up discipline as the topmost flag. This call is refused outright when
+    /// AIDA64 runs elevated and this process does not, and it used to log a success it never had,
+    /// every five seconds, forever.
+    /// </summary>
+    private void TryHidePanelFromAltTab(WindowInfo panel)
+    {
+        if (_altTabGivenUp || DateTime.UtcNow - _lastAltTabAttempt < StyleRetryInterval)
+        {
+            return;
+        }
+
+        _lastAltTabAttempt = DateTime.UtcNow;
+
+        var updated = (panel.ExStyle | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW;
+        SetWindowLongPtr(panel.Handle, GWL_EXSTYLE, new IntPtr(updated));
+        var error = Marshal.GetLastWin32Error();
+
+        var applied = (GetWindowLongPtr(panel.Handle, GWL_EXSTYLE).ToInt64() & WS_EX_TOOLWINDOW) != 0;
+        if (applied)
+        {
+            _altTabFailures = 0;
+            _log.Debug("Ukryto SensorPanel z Alt+Tab.");
+            return;
+        }
+
+        _altTabFailures++;
+        if (_altTabFailures < StyleMaxFailures)
+        {
+            return;
+        }
+
+        _altTabGivenUp = true;
+        _log.Warn($"Nie udało się ukryć panelu z Alt+Tab (błąd {error}, prób: {_altTabFailures}) — "
+                  + "przestaję próbować. Przy AIDA64 działającej jako administrator wymaga to uruchomienia "
+                  + "SensorPanelGlue jako administrator.");
+    }
+
+    private void ResetStyleState()
     {
         _topmostGivenUp = false;
         _topmostFailures = 0;
         _lastTopmostAttempt = DateTime.MinValue;
+        _altTabGivenUp = false;
+        _altTabFailures = 0;
+        _lastAltTabAttempt = DateTime.MinValue;
     }
 
     private void RelocateForeignWindows()
@@ -799,22 +980,24 @@ public sealed class GlueService : IDisposable
             _panelHwnd = IntPtr.Zero;
         }
 
-        var found = WindowQuery
-            .EnumerateTopLevel(info => info.IsVisible && WindowQuery.Matches(info, _config.PanelRule))
-            .FirstOrDefault();
-
+        var found = FindPanel(_config.PanelRule);
         if (found is not null)
         {
             _panelHwnd = found.Handle;
             _log.Info("Znaleziono SensorPanel: " + found.Describe());
 
             // A recreated panel window deserves a fresh attempt at the styles.
-            ResetTopmostState();
+            ResetStyleState();
             ProbePanelAccess(found.Handle);
         }
 
         return found;
     }
+
+    private static WindowInfo? FindPanel(WindowRule rule) =>
+        WindowQuery
+            .EnumerateTopLevel(info => info.IsVisible && WindowQuery.Matches(info, rule))
+            .FirstOrDefault();
 
     /// <summary>
     /// Checks once per panel handle whether this process may reposition it. Done with a no-op
@@ -855,34 +1038,28 @@ public sealed class GlueService : IDisposable
     }
 
     /// <summary>
-    /// Guards against fighting AIDA64 itself: after too many corrections in a row, stand down
-    /// briefly instead of looping.
+    /// Guards against fighting AIDA64 itself. Only corrections that actually happened count: when
+    /// every attempt is refused, a message about "corrections" being undone would be false.
     /// </summary>
-    private bool IsPanelBackedOff()
+    private void RecordPanelCorrection()
     {
         var now = DateTime.UtcNow;
-        if (now < _panelBackoffUntil)
+        if (now - _panelCorrectionWindowStart > PanelBackoffWindow)
         {
-            return true;
+            _panelCorrectionWindowStart = now;
+            _panelCorrections = 0;
         }
 
-        if (now - _panelMoveWindowStart > TimeSpan.FromSeconds(10))
+        _panelCorrections++;
+        if (_panelCorrections < PanelBackoffCorrections)
         {
-            _panelMoveWindowStart = now;
-            _panelMoveCount = 0;
-        }
-
-        _panelMoveCount++;
-        if (_panelMoveCount <= PanelBackoffMoves)
-        {
-            return false;
+            return;
         }
 
         _panelBackoffUntil = now + PanelBackoffDuration;
-        _panelMoveCount = 0;
-        _log.Warn($"SensorPanel wraca na złą pozycję mimo {PanelBackoffMoves} korekt — "
-                  + $"przerwa {PanelBackoffDuration.TotalSeconds:0} s.");
-        return true;
+        _panelCorrections = 0;
+        _log.Warn($"SensorPanel wraca na złą pozycję mimo {PanelBackoffCorrections} udanych korekt "
+                  + $"w ciągu {PanelBackoffWindow.TotalSeconds:0} s — przerwa {PanelBackoffDuration.TotalSeconds:0} s.");
     }
 
     private void MarkSelfMoved(IntPtr hwnd)
@@ -906,6 +1083,16 @@ public sealed class GlueService : IDisposable
         return false;
     }
 
+    /// <summary>Entries are otherwise only removed when the same window moves again.</summary>
+    private void PruneSelfMoved()
+    {
+        var now = DateTime.UtcNow;
+        foreach (var handle in _selfMoved.Where(e => e.Value < now).Select(e => e.Key).ToList())
+        {
+            _selfMoved.Remove(handle);
+        }
+    }
+
     /// <summary>Re-checks a moved window once the destination monitor's DPI has settled.</summary>
     private void QueueRecheck(IntPtr hwnd)
     {
@@ -914,8 +1101,25 @@ public sealed class GlueService : IDisposable
             _recheckQueue.Add(hwnd);
         }
 
-        _recheckTimer.Stop();
-        _recheckTimer.Start();
+        _recheckDueUtc = Earlier(_recheckDueUtc, DateTime.UtcNow + PostMoveRecheck);
+        _clock?.WakeAt(_recheckDueUtc);
+    }
+
+    private void RunRechecks()
+    {
+        var handles = _recheckQueue.ToArray();
+        _recheckQueue.Clear();
+        foreach (var handle in handles)
+        {
+            try
+            {
+                HandleForeignWindow(handle);
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Błąd przy ponownym sprawdzeniu okna 0x{handle.ToInt64():X}.", ex);
+            }
+        }
     }
 
     private void UpdateStatus(ServiceState state, string message)

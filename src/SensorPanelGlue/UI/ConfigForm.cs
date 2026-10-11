@@ -58,7 +58,7 @@ public sealed class ConfigForm : Form
         MinimumSize = new Size(760, 620);
         Size = new Size(820, 660);
         AutoScaleMode = AutoScaleMode.Font;
-        Font = new Font("Segoe UI", 9f);
+        Font = UiFonts.Body;
 
         var tabs = new TabControl { Dock = DockStyle.Fill };
         tabs.TabPages.Add(BuildMonitorsTab());
@@ -360,7 +360,7 @@ public sealed class ConfigForm : Form
 
         var cancel = MakeButton("Anuluj", (_, _) => Close(), 100);
         var save = MakeButton("Zapisz", (_, _) => SaveAndClose(), 100);
-        save.Font = new Font(save.Font, FontStyle.Bold);
+        save.Font = UiFonts.Bold;
 
         bar.Controls.Add(cancel);
         bar.Controls.Add(save);
@@ -479,18 +479,20 @@ public sealed class ConfigForm : Form
 
     private void CaptureGeometry()
     {
-        // Capture works against the live configuration, so push the draft's rule first.
+        // Measures with the rule currently typed in the form, but only into the draft: nothing
+        // takes effect until Save, and Cancel discards it. This used to write into the running
+        // configuration and save it, so an abandoned rule stayed live after Cancel.
         ReadControlsIntoDraft();
-        _service.Config.PanelRule = _draft.PanelRule;
-        _service.Config.PanelMonitorId = _draft.PanelMonitorId;
 
-        if (_service.CaptureCurrentPanelGeometry(out var message))
+        if (_service.TryMeasurePanel(_draft.PanelRule, out var monitor, out var geometry, out var message))
         {
-            _draft.PanelMonitorId = _service.Config.PanelMonitorId;
-            _draft.PanelGeometry = _service.Config.PanelGeometry;
+            _draft.PanelMonitorId = monitor!.StableId;
+            _draft.PanelGeometry = geometry;
             UpdateGeometryLabel();
             RefreshMonitors();
-            MessageBox.Show(this, message, "SensorPanelGlue", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, message + Environment.NewLine + Environment.NewLine
+                                  + "Pozycja zostanie użyta po naciśnięciu „Zapisz”.",
+                "SensorPanelGlue", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         else
         {
@@ -501,9 +503,8 @@ public sealed class ConfigForm : Form
     private void ShowDiagnostics()
     {
         ReadControlsIntoDraft();
-        _service.Config.PanelRule = _draft.PanelRule;
 
-        var report = _service.RunDiagnostics();
+        var report = _service.RunDiagnostics(_draft.PanelRule);
         using var dialog = new Form
         {
             Text = "Diagnostyka okien",
@@ -519,7 +520,7 @@ public sealed class ConfigForm : Form
             ScrollBars = ScrollBars.Both,
             WordWrap = false,
             Dock = DockStyle.Fill,
-            Font = new Font("Consolas", 9f),
+            Font = UiFonts.Mono,
             Text = report,
         };
 
@@ -699,7 +700,7 @@ public sealed class ConfigForm : Form
     {
         Text = text,
         AutoSize = true,
-        Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+        Font = UiFonts.Bold,
         Margin = new Padding(0, 12, 0, 6),
     };
 

@@ -81,7 +81,8 @@ public sealed class WindowMover
         var onTarget = Area(Rectangle.Intersect(rect, to.Bounds));
         var onSource = Area(Rectangle.Intersect(rect, from.Bounds));
 
-        if (onTarget > onSource)
+        // A tie still counts: half the window on each screen is not "unmoved".
+        if (onTarget > 0 && onTarget >= onSource)
         {
             return MoveOutcome.Success;
         }
@@ -146,10 +147,14 @@ public sealed class WindowMover
             return Report("GetWindowPlacement", info.Describe());
         }
 
+        var original = placement;
+
         // rcNormalPosition uses workspace coordinates; translating by a delta is safe regardless
-        // of the coordinate base, unlike computing an absolute position.
+        // of the coordinate base, unlike computing an absolute position. Only the position is
+        // clamped: this is the size the user gets back when un-maximizing, and shrinking it to fit
+        // the destination would change it for good.
         var normal = placement.rcNormalPosition.ToRectangle();
-        var moved = ClampInto(new Rectangle(normal.Location + delta, normal.Size), to.WorkArea);
+        var moved = ClampPosition(new Rectangle(normal.Location + delta, normal.Size), to.WorkArea);
         placement.rcNormalPosition = RECT.FromRectangle(moved);
 
         // Two steps on purpose. Handing SetWindowPlacement a translated rcNormalPosition together
@@ -168,7 +173,23 @@ public sealed class WindowMover
             return MoveOutcome.Success;
         }
 
-        return Report("SetWindowPlacement (maksymalizacja)", info.Describe());
+        var outcome = Report("SetWindowPlacement (maksymalizacja)", info.Describe());
+
+        // Never leave a maximized window un-maximized at a position it was never in.
+        if (!SetWindowPlacement(info.Handle, ref original))
+        {
+            _log.Warn("Nie udało się przywrócić pierwotnego stanu okna po nieudanej maksymalizacji: " + info.Describe());
+        }
+
+        return outcome;
+    }
+
+    /// <summary>Shifts a rectangle as far into <paramref name="area"/> as it goes, without resizing it.</summary>
+    private static Rectangle ClampPosition(Rectangle rect, Rectangle area)
+    {
+        var x = Math.Clamp(rect.X, area.Left, Math.Max(area.Left, area.Right - rect.Width));
+        var y = Math.Clamp(rect.Y, area.Top, Math.Max(area.Top, area.Bottom - rect.Height));
+        return new Rectangle(x, y, rect.Width, rect.Height);
     }
 
     private MoveOutcome Report(string api, string subject)

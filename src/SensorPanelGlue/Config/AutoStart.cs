@@ -1,6 +1,6 @@
-using System.Diagnostics;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Principal;
-using System.Text;
 using Microsoft.Win32;
 using SensorPanelGlue.Core;
 using SensorPanelGlue.Diagnostics;
@@ -23,6 +23,11 @@ public enum AutoStartMode
 /// The only system-configuration surface this application touches, and only when the user picks a
 /// mode in the UI. Two mechanisms, because the registry Run key physically cannot start a process
 /// elevated — that is a Windows rule, not a limitation of this code.
+///
+/// The scheduled task is managed through the Task Scheduler COM API, in process. An earlier
+/// version wrote the definition to a fixed file in %TEMP% and handed it to schtasks.exe, which
+/// let unprivileged code swap the file between the write and the elevated read, and launched
+/// schtasks.exe by bare name from a directory unprivileged code could write to.
 /// </summary>
 public static class AutoStart
 {
@@ -31,6 +36,11 @@ public static class AutoStart
     private const string ExecutableName = "SensorPanelGlue.exe";
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string ValueName = "SensorPanelGlue";
+
+    private const int TaskCreateOrUpdate = 6;
+    private const int TaskLogonInteractiveToken = 3;
+    private const int ErrorFileNotFound = unchecked((int)0x80070002);
+    private const int ErrorAccessDenied = unchecked((int)0x80070005);
 
     /// <summary>
     /// The path to register for autostart. Environment.ProcessPath alone is not enough: under
@@ -71,7 +81,7 @@ public static class AutoStart
 
     /// <summary>
     /// Applies a mode, removing whatever the other mechanism had left behind. Returns false and a
-    /// human-readable reason when the change could not be made (usually a dismissed UAC prompt).
+    /// human-readable reason when the change could not be made.
     /// </summary>
     public static bool SetMode(AutoStartMode mode, Logger log, out string message)
     {
@@ -89,8 +99,13 @@ public static class AutoStart
         switch (mode)
         {
             case AutoStartMode.Disabled:
+                if (!RemoveScheduledTask(log, out message))
+                {
+                    return false;
+                }
+
                 RemoveRunKey(log);
-                return RemoveScheduledTask(log, out message);
+                return true;
 
             case AutoStartMode.RegistryRun:
                 if (!RemoveScheduledTask(log, out message))
@@ -101,8 +116,14 @@ public static class AutoStart
                 return WriteRunKey(exe, log, out message);
 
             case AutoStartMode.ScheduledTaskElevated:
+                // Create first, clean up second: a refusal must not leave the user with no autostart.
+                if (!CreateScheduledTask(exe, log, out message))
+                {
+                    return false;
+                }
+
                 RemoveRunKey(log);
-                return CreateScheduledTask(exe, log, out message);
+                return true;
 
             default:
                 message = "Nieznany tryb autostartu.";
@@ -175,7 +196,18 @@ public static class AutoStart
     {
         try
         {
-            return RunSchtasks($"/Query /TN \"{TaskName}\"", elevate: false, out _) == 0;
+            dynamic folder = RootFolder();
+            folder.GetTask(TaskName);
+            return true;
+        }
+        catch (Exception ex) when (HResultOf(ex) == ErrorFileNotFound)
+        {
+            return false;
+        }
+        catch (Exception ex) when (HResultOf(ex) == ErrorAccessDenied)
+        {
+            // The task belongs to an administrator context: it exists, this process just may not read it.
+            return true;
         }
         catch (Exception)
         {
@@ -185,26 +217,30 @@ public static class AutoStart
 
     private static bool CreateScheduledTask(string exe, Logger log, out string message)
     {
-        message = string.Empty;
-        var xmlPath = Path.Combine(Path.GetTempPath(), "SensorPanelGlue.task.xml");
+        if (!Elevation.IsElevated())
+        {
+            message = "Ten tryb wymaga uprawnień administratora. Użyj „Uruchom ponownie jako "
+                      + "administrator” z menu ikony i wybierz tryb jeszcze raz.";
+            return false;
+        }
+
+        // The task starts this file with administrator rights and no UAC prompt at every logon.
+        // If anyone else can change the file, that is a free elevation for any program they run.
+        if (!ExecutableTrust.IsProtected(exe, out var reason))
+        {
+            message = "Odmawiam utworzenia zadania z uprawnieniami administratora, bo program mogą "
+                      + "podmienić zwykli użytkownicy:" + Environment.NewLine + reason
+                      + Environment.NewLine + Environment.NewLine
+                      + @"Zainstaluj go w C:\Program Files\SensorPanelGlue (skrypt scripts\Install.ps1) "
+                      + "i włącz ten tryb z tamtej kopii.";
+            log.Warn(message);
+            return false;
+        }
 
         try
         {
-            // schtasks /XML expects UTF-16; anything else fails with a misleading parse error.
-            File.WriteAllText(xmlPath, BuildTaskXml(exe), Encoding.Unicode);
-
-            var exitCode = RunSchtasks(
-                $"/Create /TN \"{TaskName}\" /XML \"{xmlPath}\" /F",
-                elevate: !Elevation.IsElevated(),
-                out var output);
-
-            if (exitCode != 0)
-            {
-                message = "Nie udało się utworzyć zadania w Harmonogramie zadań "
-                          + $"(kod {exitCode}). Najczęstsza przyczyna to anulowany monit UAC.";
-                log.Error(message + " " + output);
-                return false;
-            }
+            dynamic folder = RootFolder();
+            folder.RegisterTask(TaskName, BuildTaskXml(exe), TaskCreateOrUpdate, null, null, TaskLogonInteractiveToken, null);
 
             if (!ScheduledTaskExists())
             {
@@ -213,6 +249,7 @@ public static class AutoStart
                 return false;
             }
 
+            message = string.Empty;
             log.Info("Utworzono zadanie autostartu z podniesionymi uprawnieniami: " + exe);
             return true;
         }
@@ -221,20 +258,6 @@ public static class AutoStart
             message = "Nie udało się utworzyć zadania w Harmonogramie zadań.";
             log.Error(message, ex);
             return false;
-        }
-        finally
-        {
-            try
-            {
-                if (File.Exists(xmlPath))
-                {
-                    File.Delete(xmlPath);
-                }
-            }
-            catch (IOException)
-            {
-                // A leftover temp file is not worth failing the operation over.
-            }
         }
     }
 
@@ -247,60 +270,45 @@ public static class AutoStart
             return true;
         }
 
-        var exitCode = RunSchtasks(
-            $"/Delete /TN \"{TaskName}\" /F",
-            elevate: !Elevation.IsElevated(),
-            out var output);
-
-        if (exitCode == 0)
+        if (!Elevation.IsElevated())
         {
+            message = "Usunięcie zadania z Harmonogramu wymaga uprawnień administratora. Użyj "
+                      + "„Uruchom ponownie jako administrator” z menu ikony i wybierz tryb jeszcze raz.";
+            return false;
+        }
+
+        try
+        {
+            dynamic folder = RootFolder();
+            folder.DeleteTask(TaskName, 0);
             log.Info("Usunięto zadanie autostartu z Harmonogramu zadań.");
             return true;
         }
-
-        message = $"Nie udało się usunąć zadania z Harmonogramu zadań (kod {exitCode}).";
-        log.Error(message + " " + output);
-        return false;
+        catch (Exception ex)
+        {
+            message = "Nie udało się usunąć zadania z Harmonogramu zadań.";
+            log.Error(message, ex);
+            return false;
+        }
     }
 
-    private static int RunSchtasks(string arguments, bool elevate, out string output)
+    private static object RootFolder()
     {
-        output = string.Empty;
+        var type = Type.GetTypeFromProgID("Schedule.Service", throwOnError: true)!;
+        dynamic service = Activator.CreateInstance(type)!;
+        service.Connect();
+        return service.GetFolder("\\");
+    }
 
-        var info = new ProcessStartInfo
+    private static int HResultOf(Exception ex)
+    {
+        var current = ex;
+        while (current is TargetInvocationException { InnerException: { } inner })
         {
-            FileName = "schtasks.exe",
-            Arguments = arguments,
-        };
-
-        if (elevate)
-        {
-            // A single UAC prompt for the task change; the application itself stays as-invoker.
-            info.UseShellExecute = true;
-            info.Verb = "runas";
-            info.WindowStyle = ProcessWindowStyle.Hidden;
-        }
-        else
-        {
-            info.UseShellExecute = false;
-            info.CreateNoWindow = true;
-            info.RedirectStandardOutput = true;
-            info.RedirectStandardError = true;
+            current = inner;
         }
 
-        using var process = Process.Start(info);
-        if (process is null)
-        {
-            return -1;
-        }
-
-        if (!elevate)
-        {
-            output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
-        }
-
-        process.WaitForExit(30000);
-        return process.HasExited ? process.ExitCode : -1;
+        return current is COMException com ? com.ErrorCode : current.HResult;
     }
 
     private static string BuildTaskXml(string exe)

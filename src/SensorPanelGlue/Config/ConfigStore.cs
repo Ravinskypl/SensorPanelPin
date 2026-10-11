@@ -57,15 +57,26 @@ public sealed class ConfigStore
 
     public bool Save(AppConfig config)
     {
+        string? temp = null;
         try
         {
             config.Normalize();
-            Directory.CreateDirectory(AppDataDirectory);
+            var directory = SafeDirectory.Open(AppDataDirectory);
 
-            // Write-then-replace so a crash mid-write cannot leave a truncated config behind.
-            var temp = ConfigPath + ".tmp";
-            File.WriteAllText(temp, JsonSerializer.Serialize(config, Options));
+            // Write-then-replace so a crash mid-write cannot leave a truncated config behind. The
+            // temporary name is random and created with CreateNew, so nothing can be waiting at it -
+            // a pre-planted hardlink at a fixed ".tmp" name would otherwise receive the elevated
+            // write. The handle is then verified before a single byte goes in.
+            var tempName = "config." + Guid.NewGuid().ToString("N") + ".tmp";
+            temp = directory.Combine(tempName);
+            using (var stream = directory.OpenFile(tempName, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                JsonSerializer.Serialize(stream, config, Options);
+            }
+
+            // MoveFileEx replaces a directory entry; it never writes through a link at the target.
             File.Move(temp, ConfigPath, overwrite: true);
+            temp = null;
             _log.Info("Zapisano konfigurację.");
             return true;
         }
@@ -73,6 +84,22 @@ public sealed class ConfigStore
         {
             _log.Error("Nie udało się zapisać konfiguracji.", ex);
             return false;
+        }
+        finally
+        {
+            if (temp is not null)
+            {
+                try
+                {
+                    File.Delete(temp);
+                }
+                catch (IOException)
+                {
+                }
+                catch (UnauthorizedAccessException)
+                {
+                }
+            }
         }
     }
 }

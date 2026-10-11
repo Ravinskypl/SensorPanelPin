@@ -27,7 +27,7 @@ internal static class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
-        var log = new Logger(Path.Combine(ConfigStore.DefaultAppDataDirectory, "logs"));
+        using var log = new Logger(Path.Combine(ConfigStore.DefaultAppDataDirectory, "logs"));
         var store = new ConfigStore(log);
         var config = store.Load();
 

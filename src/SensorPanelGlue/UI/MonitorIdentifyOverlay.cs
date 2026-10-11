@@ -61,7 +61,7 @@ public static class MonitorIdentifyOverlay
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleCenter,
             ForeColor = Color.White,
-            Font = new Font("Segoe UI", 96f, FontStyle.Bold, GraphicsUnit.Point),
+            Font = UiFonts.OverlayNumber,
         };
 
         var nameLabel = new Label
@@ -71,7 +71,7 @@ public static class MonitorIdentifyOverlay
             Height = 46,
             TextAlign = ContentAlignment.MiddleCenter,
             ForeColor = Color.FromArgb(190, 200, 215),
-            Font = new Font("Segoe UI", 10f, FontStyle.Regular, GraphicsUnit.Point),
+            Font = UiFonts.OverlayCaption,
         };
 
         form.Controls.Add(numberLabel);

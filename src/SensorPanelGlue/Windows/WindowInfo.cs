@@ -29,6 +29,15 @@ public sealed class WindowInfo
 
     public required IntPtr Owner { get; init; }
 
+    /// <summary>
+    /// Log form of the window. The title is shortened: it identifies the window well enough for
+    /// diagnosis, while full titles - document names, mail subjects, URLs - do not pile up on disk.
+    /// </summary>
     public string Describe() =>
-        $"hwnd=0x{Handle.ToInt64():X} proces='{ProcessName}' klasa='{ClassName}' tytuł='{Title}' rect={Rect}";
+        $"hwnd=0x{Handle.ToInt64():X} proces='{ProcessName}' klasa='{ClassName}' tytuł='{Shorten(Title)}' rect={Rect}";
+
+    internal const int LoggedTitleLength = 60;
+
+    internal static string Shorten(string title) =>
+        title.Length <= LoggedTitleLength ? title : title[..LoggedTitleLength] + "…";
 }

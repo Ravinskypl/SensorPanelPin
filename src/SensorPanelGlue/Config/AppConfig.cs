@@ -147,8 +147,32 @@ public sealed class AppConfig
         DisplayChangeDelayMs = Math.Clamp(DisplayChangeDelayMs, 0, 60000);
         PingPongLimit = Math.Clamp(PingPongLimit, 1, 50);
         PingPongWindowSeconds = Math.Clamp(PingPongWindowSeconds, 1, 600);
+        PanelMonitorId ??= string.Empty;
+        HostMonitorId ??= string.Empty;
         PanelRule ??= new WindowRule();
         PanelGeometry ??= new PanelGeometry();
         Exceptions ??= new List<WindowRule>();
+
+        // A hand-edited "Exceptions": [null] used to survive loading, then make Clone() throw inside
+        // the configuration window's constructor - so the window silently never opened.
+        Exceptions.RemoveAll(rule => rule is null);
+
+        Normalize(PanelRule);
+        foreach (var rule in Exceptions)
+        {
+            Normalize(rule);
+        }
+
+        if (PanelGeometry.Width < 0 || PanelGeometry.Height < 0)
+        {
+            PanelGeometry = new PanelGeometry();
+        }
+    }
+
+    private static void Normalize(WindowRule rule)
+    {
+        rule.ProcessName ??= string.Empty;
+        rule.ClassPattern ??= string.Empty;
+        rule.TitlePattern ??= string.Empty;
     }
 }

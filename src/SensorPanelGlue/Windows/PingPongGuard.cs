@@ -24,7 +24,7 @@ public sealed class PingPongGuard
         public bool Abandoned;
     }
 
-    private const int MaxRounds = 3;
+    internal const int MaxRounds = 3;
 
     private readonly Dictionary<IntPtr, Entry> _entries = new();
     private readonly Dictionary<IntPtr, ProblemWindow> _problems = new();
@@ -109,10 +109,12 @@ public sealed class PingPongGuard
         }
 
         entry.Abandoned = true;
-        var description = $"{info.ProcessName} — {info.Title} (klasa {info.ClassName})";
+        var description = $"{info.ProcessName} — {WindowInfo.Shorten(info.Title)} (klasa {info.ClassName})";
         _problems[info.Handle] = new ProblemWindow(description, DateTime.Now);
+
+        // The abandoning burst is the MaxRounds-th; the pauses happened between bursts.
         _log.Warn(
-            $"Okno wraca na zakazany ekran po {MaxRounds} przerwach — przestaję je przenosić "
+            $"Okno wraca na zakazany ekran po {MaxRounds - 1} przerwach — przestaję je przenosić "
             + "do końca sesji: " + info.Describe());
         return false;
     }

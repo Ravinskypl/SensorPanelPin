@@ -7,7 +7,16 @@ namespace SensorPanelGlue.Windows;
 /// <summary>Reads window metadata and enumerates top-level windows.</summary>
 public static class WindowQuery
 {
-    private static readonly Dictionary<uint, string> ProcessNameCache = new();
+    /// <summary>
+    /// Titles are set by the program that owns the window, and GetWindowTextLength happily reports
+    /// megabytes. Nothing here needs more than the start of a title.
+    /// </summary>
+    internal const int MaxTitleLength = 512;
+
+    /// <summary>PIDs are recycled; a cached name older than this may belong to a different process.</summary>
+    private static readonly TimeSpan ProcessNameTtl = TimeSpan.FromSeconds(30);
+
+    private static readonly Dictionary<uint, (string Name, DateTime CachedAt)> ProcessNameCache = new();
     private static readonly object CacheGate = new();
 
     public static WindowInfo? Get(IntPtr hwnd)
@@ -27,7 +36,7 @@ public static class WindowQuery
         var classBuffer = new StringBuilder(256);
         GetClassName(hwnd, classBuffer, classBuffer.Capacity);
 
-        var titleLength = GetWindowTextLength(hwnd);
+        var titleLength = Math.Min(GetWindowTextLength(hwnd), MaxTitleLength);
         var title = string.Empty;
         if (titleLength > 0)
         {
@@ -86,9 +95,10 @@ public static class WindowQuery
 
         lock (CacheGate)
         {
-            if (ProcessNameCache.TryGetValue(pid, out var cached))
+            if (ProcessNameCache.TryGetValue(pid, out var cached)
+                && DateTime.UtcNow - cached.CachedAt < ProcessNameTtl)
             {
-                return cached;
+                return cached.Name;
             }
         }
 
@@ -119,7 +129,7 @@ public static class WindowQuery
                 ProcessNameCache.Clear();
             }
 
-            ProcessNameCache[pid] = name;
+            ProcessNameCache[pid] = (name, DateTime.UtcNow);
         }
 
         return name;

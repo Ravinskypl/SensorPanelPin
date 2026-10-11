@@ -72,6 +72,16 @@ public sealed class TrayApplicationContext : ApplicationContext
         _service.Start();
         RefreshAutoStartMenu();
         UpdateTray(_service.Status);
+
+        // If the log refused to write through a planted link, the log itself cannot say so.
+        if (_log.DisabledReason is not null)
+        {
+            _tray.ShowBalloonTip(
+                15000,
+                "SensorPanelGlue — log wyłączony",
+                "Zapis logu został wyłączony ze względów bezpieczeństwa: " + _log.DisabledReason,
+                ToolTipIcon.Warning);
+        }
     }
 
     private void TogglePause()
@@ -127,7 +137,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void RunDiagnostics()
     {
-        var report = _service.RunDiagnostics();
+        var report = _service.RunDiagnostics(_service.Config.PanelRule);
         using var dialog = new Form
         {
             Text = "Diagnostyka okien",
@@ -143,7 +153,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             ScrollBars = ScrollBars.Both,
             WordWrap = false,
             Dock = DockStyle.Fill,
-            Font = new System.Drawing.Font("Consolas", 9f),
+            Font = UiFonts.Mono,
             Text = report,
         });
 

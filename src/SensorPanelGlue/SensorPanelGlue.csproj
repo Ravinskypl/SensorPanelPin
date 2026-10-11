@@ -32,6 +32,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="SensorPanelGlue.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Same file twice on purpose: as the shell icon of the executable, and as a resource so the
          tray and window icons come from one mark instead of a second, drifting definition. -->
     <EmbeddedResource Include="app.ico" LogicalName="SensorPanelGlue.app.ico" />
