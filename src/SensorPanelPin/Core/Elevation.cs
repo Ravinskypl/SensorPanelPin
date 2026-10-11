@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Security.Principal;
 using SensorPanelPin.Diagnostics;
+using SensorPanelPin.Localization;
 
 namespace SensorPanelPin.Core;
 
@@ -38,8 +39,8 @@ public static class Elevation
         var exe = Environment.ProcessPath;
         if (string.IsNullOrEmpty(exe))
         {
-            message = "Nie udało się ustalić ścieżki pliku wykonywalnego.";
-            log.Error(message);
+            message = Strings.ElevationNoExecutable;
+            log.Error("Could not determine the executable's path for the restart.");
             return false;
         }
 
@@ -55,20 +56,20 @@ public static class Elevation
                 Verb = "runas",
             });
 
-            log.Info("Uruchomiono ponownie z podniesionymi uprawnieniami.");
+            log.Info("Restarted with administrator rights.");
             message = string.Empty;
             return true;
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == ErrorCancelled)
         {
-            message = "Podniesienie uprawnień zostało anulowane.";
-            log.Info(message);
+            message = Strings.ElevationCancelled;
+            log.Info("The administrator prompt was cancelled.");
             return false;
         }
         catch (Exception ex)
         {
-            message = "Nie udało się uruchomić ponownie z podniesionymi uprawnieniami.";
-            log.Error(message, ex);
+            message = Strings.ElevationFailed;
+            log.Error("Could not restart with administrator rights.", ex);
             return false;
         }
     }

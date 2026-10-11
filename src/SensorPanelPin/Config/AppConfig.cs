@@ -16,20 +16,20 @@ public sealed class WindowRule
         var parts = new List<string>(3);
         if (!string.IsNullOrWhiteSpace(ProcessName))
         {
-            parts.Add("proces=" + ProcessName);
+            parts.Add("process=" + ProcessName);
         }
 
         if (!string.IsNullOrWhiteSpace(ClassPattern))
         {
-            parts.Add("klasa=" + ClassPattern);
+            parts.Add("class=" + ClassPattern);
         }
 
         if (!string.IsNullOrWhiteSpace(TitlePattern))
         {
-            parts.Add("tytuł=" + TitlePattern);
+            parts.Add("title=" + TitlePattern);
         }
 
-        return parts.Count == 0 ? "(pusta reguła)" : string.Join("; ", parts);
+        return parts.Count == 0 ? "(empty rule)" : string.Join("; ", parts);
     }
 }
 

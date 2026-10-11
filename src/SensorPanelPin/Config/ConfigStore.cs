@@ -56,7 +56,7 @@ public sealed class ConfigStore
 
             if (!File.Exists(ConfigPath))
             {
-                _log.Info("Brak pliku konfiguracji, tworzę domyślną: " + ConfigPath);
+                _log.Info("No configuration file; creating the default one: " + ConfigPath);
                 var fresh = new AppConfig();
                 Save(fresh);
                 return fresh;
@@ -65,12 +65,12 @@ public sealed class ConfigStore
             var json = File.ReadAllText(ConfigPath);
             var config = JsonSerializer.Deserialize<AppConfig>(json, Options) ?? new AppConfig();
             config.Normalize();
-            _log.Info("Wczytano konfigurację: " + ConfigPath);
+            _log.Info("Loaded configuration: " + ConfigPath);
             return config;
         }
         catch (Exception ex)
         {
-            _log.Error("Nie udało się wczytać konfiguracji, używam ustawień domyślnych.", ex);
+            _log.Error("Could not load the configuration; using the defaults.", ex);
             return new AppConfig();
         }
     }
@@ -96,13 +96,13 @@ public sealed class ConfigStore
                 return null;
             }
 
-            _log.Info("Przeniesiono konfigurację spod poprzedniej nazwy programu: " + _legacyConfigPath
-                      + " -> " + ConfigPath + ". Stary folder zostaje bez zmian, są w nim też dawne logi.");
+            _log.Info("Took over the configuration from the old program name: " + _legacyConfigPath
+                      + " -> " + ConfigPath + ". The old folder, with the old logs, is left as it was.");
             return config;
         }
         catch (Exception ex)
         {
-            _log.Error("Nie udało się przenieść konfiguracji z " + _legacyConfigPath + ", używam ustawień domyślnych.", ex);
+            _log.Error("Could not take over the configuration from " + _legacyConfigPath + "; using the defaults.", ex);
             return null;
         }
     }
@@ -129,12 +129,12 @@ public sealed class ConfigStore
             // MoveFileEx replaces a directory entry; it never writes through a link at the target.
             File.Move(temp, ConfigPath, overwrite: true);
             temp = null;
-            _log.Info("Zapisano konfigurację.");
+            _log.Info("Saved the configuration.");
             return true;
         }
         catch (Exception ex)
         {
-            _log.Error("Nie udało się zapisać konfiguracji.", ex);
+            _log.Error("Could not save the configuration.", ex);
             return false;
         }
         finally

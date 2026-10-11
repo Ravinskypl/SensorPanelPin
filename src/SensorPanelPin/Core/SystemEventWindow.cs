@@ -44,12 +44,12 @@ public sealed class SystemEventWindow : NativeWindow, IDisposable
             }
             else
             {
-                _log.Warn("WTSRegisterSessionNotification nie powiodło się; brak reakcji na odblokowanie sesji.");
+                _log.Warn("WTSRegisterSessionNotification failed; session unlocks will not be noticed.");
             }
         }
         catch (Exception ex)
         {
-            _log.Error("Rejestracja powiadomień o sesji nie powiodła się; kontynuuję bez nich.", ex);
+            _log.Error("Registering for session notifications failed; continuing without them.", ex);
         }
     }
 
@@ -58,18 +58,18 @@ public sealed class SystemEventWindow : NativeWindow, IDisposable
         switch (m.Msg)
         {
             case WM_DISPLAYCHANGE:
-                _onLayoutEvent("zmiana konfiguracji ekranów");
+                _onLayoutEvent("display configuration change");
                 break;
 
             case WM_DPICHANGED:
-                _onLayoutEvent("zmiana DPI");
+                _onLayoutEvent("DPI change");
                 break;
 
             case WM_POWERBROADCAST:
                 var powerEvent = m.WParam.ToInt32();
                 if (powerEvent is PBT_APMRESUMESUSPEND or PBT_APMRESUMEAUTOMATIC)
                 {
-                    _onLayoutEvent("wybudzenie systemu");
+                    _onLayoutEvent("system wake-up");
                 }
 
                 break;
@@ -78,7 +78,7 @@ public sealed class SystemEventWindow : NativeWindow, IDisposable
                 var sessionEvent = m.WParam.ToInt32();
                 if (sessionEvent is WTS_SESSION_UNLOCK or WTS_SESSION_LOGON)
                 {
-                    _onLayoutEvent("odblokowanie sesji");
+                    _onLayoutEvent("session unlock");
                 }
 
                 break;
@@ -97,7 +97,7 @@ public sealed class SystemEventWindow : NativeWindow, IDisposable
             }
             catch (Exception ex)
             {
-                _log.Error("Wyrejestrowanie powiadomień o sesji nie powiodło się.", ex);
+                _log.Error("Unregistering session notifications failed.", ex);
             }
 
             _sessionRegistered = false;

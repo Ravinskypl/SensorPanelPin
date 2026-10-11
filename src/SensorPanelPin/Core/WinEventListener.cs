@@ -37,7 +37,7 @@ public sealed class WinEventListener : IDisposable
         Hook(EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZEEND);
         Hook(EVENT_OBJECT_SHOW, EVENT_OBJECT_LOCATIONCHANGE);
 
-        _log.Info($"Zarejestrowano {_hooks.Count} hooków zdarzeń okien.");
+        _log.Info($"Registered {_hooks.Count} window event hooks.");
     }
 
     public void Stop()
@@ -74,7 +74,7 @@ public sealed class WinEventListener : IDisposable
 
         if (hook == IntPtr.Zero)
         {
-            _log.Error($"SetWinEventHook nie powiodło się dla zakresu 0x{min:X}-0x{max:X}.");
+            _log.Error($"SetWinEventHook failed for the range 0x{min:X}-0x{max:X}.");
             return;
         }
 
@@ -97,7 +97,7 @@ public sealed class WinEventListener : IDisposable
         }
         catch (Exception ex)
         {
-            _log.Error("Błąd w obsłudze zdarzenia okna.", ex);
+            _log.Error("Error handling a window event.", ex);
         }
     }
 }

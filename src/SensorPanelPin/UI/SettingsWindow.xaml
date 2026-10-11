@@ -1,6 +1,7 @@
 <Window x:Class="SensorPanelPin.UI.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="clr-namespace:SensorPanelPin.Localization"
         xmlns:ui="clr-namespace:SensorPanelPin.UI"
         xmlns:pages="clr-namespace:SensorPanelPin.UI.Pages"
         Title="SensorPanelPin"
@@ -24,11 +25,11 @@
                      ItemContainerStyle="{StaticResource NavItemStyle}"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      SelectionChanged="OnNavigate"
-                     AutomationProperties.Name="Sekcje ustawień">
-                <ListBoxItem AutomationProperties.Name="Ekrany">
+                     AutomationProperties.Name="{x:Static l:Strings.NavSections}">
+                <ListBoxItem AutomationProperties.Name="{x:Static l:Strings.ScreensTitle}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE7F4;" VerticalAlignment="Center" />
-                        <TextBlock Text="Ekrany" Margin="16,0,0,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{x:Static l:Strings.ScreensTitle}" Margin="16,0,0,0" VerticalAlignment="Center" />
                     </StackPanel>
                 </ListBoxItem>
                 <ListBoxItem AutomationProperties.Name="SensorPanel">
@@ -37,16 +38,16 @@
                         <TextBlock Text="SensorPanel" Margin="16,0,0,0" VerticalAlignment="Center" />
                     </StackPanel>
                 </ListBoxItem>
-                <ListBoxItem AutomationProperties.Name="Inne okna">
+                <ListBoxItem AutomationProperties.Name="{x:Static l:Strings.OtherWindowsTitle}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE8A7;" VerticalAlignment="Center" />
-                        <TextBlock Text="Inne okna" Margin="16,0,0,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{x:Static l:Strings.OtherWindowsTitle}" Margin="16,0,0,0" VerticalAlignment="Center" />
                     </StackPanel>
                 </ListBoxItem>
-                <ListBoxItem AutomationProperties.Name="Uruchamianie">
+                <ListBoxItem AutomationProperties.Name="{x:Static l:Strings.StartupTitle}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE7E8;" VerticalAlignment="Center" />
-                        <TextBlock Text="Uruchamianie" Margin="16,0,0,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{x:Static l:Strings.StartupTitle}" Margin="16,0,0,0" VerticalAlignment="Center" />
                     </StackPanel>
                 </ListBoxItem>
             </ListBox>

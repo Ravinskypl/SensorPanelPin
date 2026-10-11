@@ -4,6 +4,7 @@ using System.Security.Principal;
 using Microsoft.Win32;
 using SensorPanelPin.Core;
 using SensorPanelPin.Diagnostics;
+using SensorPanelPin.Localization;
 
 namespace SensorPanelPin.Config;
 
@@ -76,17 +77,10 @@ public static class AutoStart
         return RunKeyExists() ? AutoStartMode.RegistryRun : AutoStartMode.Disabled;
     }
 
-    public static string Describe(AutoStartMode mode) => mode switch
-    {
-        AutoStartMode.Disabled => "Wyłączony",
-        AutoStartMode.RegistryRun => "Rejestr (HKCU\\...\\Run) — bez uprawnień administratora",
-        AutoStartMode.ScheduledTaskElevated => "Harmonogram zadań — z uprawnieniami administratora",
-        _ => mode.ToString(),
-    };
 
     /// <summary>
     /// Applies a mode, removing whatever the other mechanism had left behind. Returns false and a
-    /// human-readable reason when the change could not be made.
+    /// reason in the user's language when the change could not be made; the log gets its own entry.
     /// </summary>
     public static bool SetMode(AutoStartMode mode, Logger log, out string message)
     {
@@ -95,9 +89,9 @@ public static class AutoStart
         var exe = ResolveExecutablePath();
         if (exe is null)
         {
-            message = $"Nie udało się ustalić ścieżki do {ExecutableName}. "
-                      + "Autostart nie został zmieniony, żeby nie zarejestrować błędnego wpisu.";
-            log.Error(message + " ProcessPath=" + (Environment.ProcessPath ?? "(brak)"));
+            message = Strings.AutoStartNoExecutableFormat(ExecutableName);
+            log.Error($"Could not determine the path to {ExecutableName}; autostart left unchanged. "
+                      + "ProcessPath=" + (Environment.ProcessPath ?? "(none)"));
             return false;
         }
 
@@ -131,7 +125,7 @@ public static class AutoStart
                 return true;
 
             default:
-                message = "Nieznany tryb autostartu.";
+                message = Strings.AutoStartUnknownMode;
                 return false;
         }
     }
@@ -162,20 +156,20 @@ public static class AutoStart
                             ?? Registry.CurrentUser.CreateSubKey(RunKeyPath);
             if (key is null)
             {
-                message = "Nie udało się otworzyć klucza autostartu w rejestrze.";
-                log.Error(message);
+                message = Strings.AutoStartRegistryOpenFailed;
+                log.Error("Could not open the registry autostart key.");
                 return false;
             }
 
             key.SetValue(ValueName, "\"" + exe + "\"", RegistryValueKind.String);
             key.DeleteValue(LegacyValueName, throwOnMissingValue: false);
-            log.Info("Autostart przez rejestr włączony: " + exe);
+            log.Info("Registry autostart turned on: " + exe);
             return true;
         }
         catch (Exception ex)
         {
-            message = "Nie udało się zapisać wpisu autostartu w rejestrze.";
-            log.Error(message, ex);
+            message = Strings.AutoStartRegistryWriteFailed;
+            log.Error("Could not write the registry autostart entry.", ex);
             return false;
         }
     }
@@ -190,13 +184,13 @@ public static class AutoStart
                 if (key?.GetValue(name) is not null)
                 {
                     key.DeleteValue(name, throwOnMissingValue: false);
-                    log.Info("Usunięto wpis autostartu z rejestru: " + name);
+                    log.Info("Removed registry autostart entry: " + name);
                 }
             }
         }
         catch (Exception ex)
         {
-            log.Error("Nie udało się usunąć wpisu autostartu z rejestru.", ex);
+            log.Error("Could not remove the registry autostart entry.", ex);
         }
     }
 
@@ -231,8 +225,7 @@ public static class AutoStart
     {
         if (!Elevation.IsElevated())
         {
-            message = "Ten tryb wymaga uprawnień administratora. Użyj „Uruchom ponownie jako "
-                      + "administrator” z menu ikony i wybierz tryb jeszcze raz.";
+            message = Strings.AutoStartNeedsElevation;
             return false;
         }
 
@@ -240,12 +233,9 @@ public static class AutoStart
         // If anyone else can change the file, that is a free elevation for any program they run.
         if (!ExecutableTrust.IsProtected(exe, out var reason))
         {
-            message = "Odmawiam utworzenia zadania z uprawnieniami administratora, bo program mogą "
-                      + "podmienić zwykli użytkownicy:" + Environment.NewLine + reason
-                      + Environment.NewLine + Environment.NewLine
-                      + @"Zainstaluj go w C:\Program Files\SensorPanelPin (Install.cmd z paczki wydania) "
-                      + "i włącz ten tryb z tamtej kopii.";
-            log.Warn(message);
+            message = Strings.AutoStartUntrustedFormat(reason);
+            log.Warn("Refused to create the elevated logon task: non-administrators can change " + exe
+                     + " or the folders leading to it.");
             return false;
         }
 
@@ -256,20 +246,20 @@ public static class AutoStart
 
             if (!TaskExists(TaskName))
             {
-                message = "Zadanie zostało zgłoszone jako utworzone, ale nie widać go w Harmonogramie zadań.";
-                log.Error(message);
+                message = Strings.AutoStartTaskNotVisible;
+                log.Error("The logon task was reported as created but cannot be found in Task Scheduler.");
                 return false;
             }
 
             message = string.Empty;
-            log.Info("Utworzono zadanie autostartu z podniesionymi uprawnieniami: " + exe);
+            log.Info("Created the elevated logon task: " + exe);
             DeleteLegacyTask(folder, log);
             return true;
         }
         catch (Exception ex)
         {
-            message = "Nie udało się utworzyć zadania w Harmonogramie zadań.";
-            log.Error(message, ex);
+            message = Strings.AutoStartTaskCreateFailed;
+            log.Error("Could not create the logon task in Task Scheduler.", ex);
             return false;
         }
     }
@@ -285,8 +275,7 @@ public static class AutoStart
 
         if (!Elevation.IsElevated())
         {
-            message = "Usunięcie zadania z Harmonogramu wymaga uprawnień administratora. Użyj "
-                      + "„Uruchom ponownie jako administrator” z menu ikony i wybierz tryb jeszcze raz.";
+            message = Strings.AutoStartRemoveNeedsElevation;
             return false;
         }
 
@@ -296,7 +285,7 @@ public static class AutoStart
             if (TaskExists(TaskName))
             {
                 folder.DeleteTask(TaskName, 0);
-                log.Info("Usunięto zadanie autostartu z Harmonogramu zadań.");
+                log.Info("Removed the logon task from Task Scheduler.");
             }
 
             DeleteLegacyTask(folder, log);
@@ -304,8 +293,8 @@ public static class AutoStart
         }
         catch (Exception ex)
         {
-            message = "Nie udało się usunąć zadania z Harmonogramu zadań.";
-            log.Error(message, ex);
+            message = Strings.AutoStartTaskRemoveFailed;
+            log.Error("Could not remove the logon task from Task Scheduler.", ex);
             return false;
         }
     }
@@ -324,11 +313,11 @@ public static class AutoStart
         try
         {
             folder.DeleteTask(LegacyTaskName, 0);
-            log.Info("Usunięto zadanie autostartu spod poprzedniej nazwy programu: " + LegacyTaskName);
+            log.Info("Removed the logon task left under the old program name: " + LegacyTaskName);
         }
         catch (Exception ex)
         {
-            log.Error("Nie udało się usunąć zadania " + LegacyTaskName + " z Harmonogramu zadań.", ex);
+            log.Error("Could not remove the old logon task " + LegacyTaskName + " from Task Scheduler.", ex);
         }
     }
 
@@ -360,7 +349,7 @@ public static class AutoStart
                 <?xml version="1.0" encoding="UTF-16"?>
                 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
                   <RegistrationInfo>
-                    <Description>Pilnuje, aby SensorPanel z AIDA64 pozostawał na wybranym monitorze.</Description>
+                    <Description>Keeps the AIDA64 SensorPanel on its chosen monitor.</Description>
                     <URI>\{TaskName}</URI>
                   </RegistrationInfo>
                   <Triggers>

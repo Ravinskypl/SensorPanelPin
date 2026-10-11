@@ -89,7 +89,7 @@ public sealed class MonitorRegistry
 
         if (!EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, Callback, IntPtr.Zero))
         {
-            _log.Warn("EnumDisplayMonitors zwróciło błąd; lista monitorów może być niekompletna.");
+            _log.Warn("EnumDisplayMonitors returned an error; the monitor list may be incomplete.");
         }
 
         result.Sort((a, b) => a.Bounds.X != b.Bounds.X
@@ -151,7 +151,7 @@ public sealed class MonitorRegistry
             return;
         }
 
-        _log.Info($"Układ ekranów: {current.Count} monitorów, spójny={LayoutIsConsistent}");
+        _log.Info($"Screen layout: {current.Count} monitors, consistent={LayoutIsConsistent}");
         foreach (var monitor in current)
         {
             _log.Info($"  {monitor.FriendlyName} {monitor.Bounds} work={monitor.WorkArea} "
@@ -252,7 +252,7 @@ public sealed class MonitorRegistry
             var status = GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out var pathCount, out var modeCount);
             if (status != ERROR_SUCCESS)
             {
-                _log.Warn($"GetDisplayConfigBufferSizes zwróciło {status}; używam nazw GDI jako identyfikatorów.");
+                _log.Warn($"GetDisplayConfigBufferSizes returned {status}; using GDI names as identifiers.");
                 return map;
             }
 
@@ -262,7 +262,7 @@ public sealed class MonitorRegistry
             status = QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, ref pathCount, paths, ref modeCount, modes, IntPtr.Zero);
             if (status != ERROR_SUCCESS)
             {
-                _log.Warn($"QueryDisplayConfig zwróciło {status}; używam nazw GDI jako identyfikatorów.");
+                _log.Warn($"QueryDisplayConfig returned {status}; using GDI names as identifiers.");
                 return map;
             }
 
@@ -319,7 +319,7 @@ public sealed class MonitorRegistry
         }
         catch (Exception ex)
         {
-            _log.Error("Odczyt konfiguracji wyświetlaczy (CCD) nie powiódł się.", ex);
+            _log.Error("Reading the display configuration (CCD) failed.", ex);
         }
 
         return map;

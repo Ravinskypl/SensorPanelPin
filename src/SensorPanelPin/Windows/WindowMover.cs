@@ -88,8 +88,8 @@ public sealed class WindowMover
         }
 
         _log.Warn(
-            $"Wywołanie przeniesienia zakończyło się powodzeniem, ale okno nie zmieniło ekranu: "
-            + $"{info.Describe()} — po operacji {rect}");
+            $"The move call succeeded, but the window did not change screens: "
+            + $"{info.Describe()} - afterwards at {rect}");
         return MoveOutcome.Failed;
     }
 
@@ -118,7 +118,7 @@ public sealed class WindowMover
             return MoveOutcome.Success;
         }
 
-        return Report("SetWindowPos", $"okno 0x{hwnd.ToInt64():X}");
+        return Report("SetWindowPos", $"window 0x{hwnd.ToInt64():X}");
     }
 
     /// <summary>
@@ -164,7 +164,7 @@ public sealed class WindowMover
         placement.showCmd = SW_SHOWNORMAL;
         if (!SetWindowPlacement(info.Handle, ref placement))
         {
-            return Report("SetWindowPlacement (przywrócenie)", info.Describe());
+            return Report("SetWindowPlacement (restore)", info.Describe());
         }
 
         placement.showCmd = SW_SHOWMAXIMIZED;
@@ -178,7 +178,7 @@ public sealed class WindowMover
         // Never leave a maximized window un-maximized at a position it was never in.
         if (!SetWindowPlacement(info.Handle, ref original))
         {
-            _log.Warn("Nie udało się przywrócić pierwotnego stanu okna po nieudanej maksymalizacji: " + info.Describe());
+            _log.Warn("Could not restore the window's original state after a failed maximise: " + info.Describe());
         }
 
         return outcome;
@@ -197,11 +197,11 @@ public sealed class WindowMover
         var error = Marshal.GetLastWin32Error();
         if (error == ErrorAccessDenied)
         {
-            _log.Debug($"{api}: odmowa dostępu (okno procesu z wyższymi uprawnieniami) — {subject}");
+            _log.Debug($"{api}: access denied (window of a process with higher rights) - {subject}");
             return MoveOutcome.AccessDenied;
         }
 
-        _log.Warn($"{api} nie powiodło się (błąd {error}) — {subject}");
+        _log.Warn($"{api} failed (error {error}) - {subject}");
         return MoveOutcome.Failed;
     }
 

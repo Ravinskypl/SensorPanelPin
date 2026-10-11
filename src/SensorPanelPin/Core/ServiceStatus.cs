@@ -1,3 +1,5 @@
+using SensorPanelPin.Localization;
+
 namespace SensorPanelPin.Core;
 
 public enum ServiceState
@@ -17,12 +19,12 @@ public sealed record ServiceStatus(ServiceState State, string Message)
 {
     public string ShortText => State switch
     {
-        ServiceState.Stopped => "Zatrzymany",
-        ServiceState.Paused => "Wstrzymany",
-        ServiceState.WaitingForMonitor => "Czekam na monitor",
-        ServiceState.WaitingForPanel => "Czekam na SensorPanel",
-        ServiceState.ElevationRequired => "Brak uprawnień",
-        ServiceState.Active => "Pilnuję",
+        ServiceState.Stopped => Strings.StateStopped,
+        ServiceState.Paused => Strings.StatePaused,
+        ServiceState.WaitingForMonitor => Strings.StateWaitingForMonitor,
+        ServiceState.WaitingForPanel => Strings.StateWaitingForPanel,
+        ServiceState.ElevationRequired => Strings.StateElevationRequired,
+        ServiceState.Active => Strings.StateActive,
         _ => "?",
     };
 }

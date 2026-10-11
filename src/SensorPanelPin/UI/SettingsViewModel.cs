@@ -7,6 +7,7 @@ using System.Windows.Input;
 using SensorPanelPin.Config;
 using SensorPanelPin.Core;
 using SensorPanelPin.Diagnostics;
+using SensorPanelPin.Localization;
 
 namespace SensorPanelPin.UI;
 
@@ -24,11 +25,11 @@ public sealed class ExceptionRow
 
     public ICommand Remove { get; }
 
-    public string Title => string.IsNullOrWhiteSpace(Rule.ProcessName) ? "Każdy program" : Rule.ProcessName;
+    public string Title => string.IsNullOrWhiteSpace(Rule.ProcessName) ? Strings.ExceptionAnyProgram : Rule.ProcessName;
 
     public string Detail => string.IsNullOrWhiteSpace(Rule.TitlePattern)
-        ? "Wszystkie okna"
-        : "Okna o tytule: " + Rule.TitlePattern;
+        ? Strings.ExceptionAllWindows
+        : Strings.ExceptionTitleFormat(Rule.TitlePattern);
 }
 
 /// <summary>
@@ -87,10 +88,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         var exe = Environment.ProcessPath ?? string.Empty;
         if (!ExecutableTrust.IsProtected(exe, out var reason))
         {
-            LocationWarning = "Program działa z folderu, który mogą zmieniać zwykli użytkownicy, więc nie może "
-                              + "startować z uprawnieniami administratora. Zainstaluj go przez "
-                              + @"Install.cmd z paczki wydania (do C:\Program Files\SensorPanelPin) i włącz ten tryb "
-                              + "z zainstalowanej kopii." + Environment.NewLine + reason;
+            LocationWarning = Strings.LocationWarningFormat(reason);
         }
 
         _autoStartMode = AutoStart.GetCurrentMode();
@@ -212,9 +210,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     public string RuleTitle { get => _config.PanelRule.TitlePattern; set => Change(v => _config.PanelRule.TitlePattern = v.Trim(), value ?? string.Empty, _config.PanelRule.TitlePattern); }
 
     public string GeometryText => _config.PanelGeometry.IsSet
-        ? $"{_config.PanelGeometry.OffsetX}, {_config.PanelGeometry.OffsetY} px od lewego górnego rogu ekranu, "
-          + $"rozmiar {_config.PanelGeometry.Width} × {_config.PanelGeometry.Height}"
-        : "Jeszcze nie zapamiętane — zapamięta się samo, gdy panel pojawi się na swoim ekranie";
+        ? Strings.GeometryFormat(_config.PanelGeometry.OffsetX, _config.PanelGeometry.OffsetY, _config.PanelGeometry.Width, _config.PanelGeometry.Height)
+        : Strings.GeometryNotSet;
 
     public string PanelMessage { get => _panelMessage; private set => Set(ref _panelMessage, value); }
 
@@ -264,7 +261,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
 
     public string LogFolder => _log.LogDirectory;
 
-    public string Version => "Wersja " + (typeof(SettingsViewModel).Assembly.GetName().Version?.ToString(3) ?? "?");
+    public string Version => Strings.VersionFormat(typeof(SettingsViewModel).Assembly.GetName().Version?.ToString(3) ?? "?");
 
     // ------------------------------------------------------------------ live state
 
@@ -317,22 +314,20 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         (string message, InfoBarSeverity severity, string? label, ICommand? action) = status.State switch
         {
             ServiceState.Active when PanelState == MapPanelState.InPlace =>
-                ($"SensorPanel jest na ekranie {panelScreen?.FriendlyName}.", InfoBarSeverity.Success, null, null),
+                (Strings.StatusInPlaceFormat(panelScreen?.FriendlyName), InfoBarSeverity.Success, null, null),
             ServiceState.Active =>
-                ("SensorPanel wraca na swój ekran.", InfoBarSeverity.Informational, null, null),
+                (Strings.StatusReturning, InfoBarSeverity.Informational, null, null),
             ServiceState.ElevationRequired =>
-                ("AIDA64 działa jako administrator, więc Windows nie pozwala przesunąć panelu. "
-                 + "Uruchom SensorPanelPin jako administrator.", InfoBarSeverity.Warning,
-                    "Uruchom jako administrator", RestartElevatedCommand),
+                (Strings.StatusElevation, InfoBarSeverity.Warning, Strings.RunAsAdministratorButton, RestartElevatedCommand),
             ServiceState.WaitingForMonitor when string.IsNullOrEmpty(_config.PanelMonitorId) =>
-                ("Wybierz poniżej, na którym ekranie ma być SensorPanel.", InfoBarSeverity.Informational, null, null),
+                (Strings.StatusChooseScreen, InfoBarSeverity.Informational, null, null),
             ServiceState.WaitingForMonitor =>
-                (status.Message + " Panel zostaje tam, gdzie jest, dopóki ekran nie wróci.", InfoBarSeverity.Warning, null, null),
+                (Strings.StatusWaitingForScreenFormat(status.Message), InfoBarSeverity.Warning, null, null),
             ServiceState.WaitingForPanel =>
-                ("Nie widzę okna SensorPanel. Włącz SensorPanel w AIDA64.", InfoBarSeverity.Informational, null, null),
+                (Strings.StatusNoPanel, InfoBarSeverity.Informational, null, null),
             ServiceState.Paused =>
-                ("Pilnowanie jest wstrzymane.", InfoBarSeverity.Informational, "Wznów", ResumeCommand),
-            _ => ("Uruchamianie…", InfoBarSeverity.Informational, null, null),
+                (Strings.StatusPaused, InfoBarSeverity.Informational, Strings.ResumeButton, ResumeCommand),
+            _ => (Strings.StatusStarting, InfoBarSeverity.Informational, null, null),
         };
 
         StatusMessage = message;
@@ -348,7 +343,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
 
         PanelScreenChoices.Clear();
         HostScreenChoices.Clear();
-        HostScreenChoices.Add(new MonitorChoice(string.Empty, "Główny ekran Windows"));
+        HostScreenChoices.Add(new MonitorChoice(string.Empty, Strings.MainWindowsScreen));
 
         for (var i = 0; i < monitors.Count; i++)
         {
@@ -361,12 +356,12 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         // A remembered screen that is unplugged right now stays selectable, so the choice is not lost.
         if (!string.IsNullOrEmpty(panelId) && PanelScreenChoices.All(c => c.Id != panelId))
         {
-            PanelScreenChoices.Add(new MonitorChoice(panelId, "Zapamiętany ekran (teraz niepodłączony)"));
+            PanelScreenChoices.Add(new MonitorChoice(panelId, Strings.RememberedScreenDisconnected));
         }
 
         if (!string.IsNullOrEmpty(hostId) && HostScreenChoices.All(c => c.Id != hostId))
         {
-            HostScreenChoices.Add(new MonitorChoice(hostId, "Zapamiętany ekran (teraz niepodłączony)"));
+            HostScreenChoices.Add(new MonitorChoice(hostId, Strings.RememberedScreenDisconnected));
         }
 
         OnPropertyChanged(nameof(PanelMonitorId));
@@ -401,7 +396,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
             Commit();
             OnPropertyChanged(nameof(PanelMonitorId));
             OnPropertyChanged(nameof(GeometryText));
-            PanelMessage = $"Zapamiętano miejsce panelu na ekranie {monitor.FriendlyName}.";
+            PanelMessage = Strings.PositionRememberedFormat(monitor.FriendlyName);
             PanelMessageSeverity = InfoBarSeverity.Success;
             Refresh();
         }
@@ -480,7 +475,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            _log.Error("Nie udało się otworzyć folderu: " + path, ex);
+            _log.Error("Could not open the folder: " + path, ex);
         }
     }
 
@@ -505,7 +500,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         _config.Normalize();
         SaveError = _store.Save(_config)
             ? string.Empty
-            : "Nie udało się zapisać ustawień na dysku — działają do zamknięcia programu. Szczegóły w logu.";
+            : Strings.SaveFailed;
         _service.ApplyConfig(_config);
     }
 

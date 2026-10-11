@@ -55,6 +55,7 @@ public sealed class ExecutableTrustTests : IDisposable
         var trusted = ExecutableTrust.IsProtected(Path.Combine(_dir, "missing.exe"), out var reason);
 
         Assert.False(trusted);
-        Assert.Contains("nie istnieje", reason);
+        // The reason is in the interface language; the path it names is the same in every language.
+        Assert.Contains("missing.exe", reason);
     }
 }

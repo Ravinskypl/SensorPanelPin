@@ -81,90 +81,90 @@ public sealed class WindowFilter
     {
         if (info.ProcessId == _ownProcessId)
         {
-            return FilterVerdict.Deny("okno własne");
+            return FilterVerdict.Deny("own window");
         }
 
         if (!info.IsVisible)
         {
-            return FilterVerdict.Deny("niewidoczne");
+            return FilterVerdict.Deny("invisible");
         }
 
         if (info.IsMinimized)
         {
-            return FilterVerdict.Deny("zminimalizowane");
+            return FilterVerdict.Deny("minimised");
         }
 
         if ((info.Style & WS_CHILD) != 0)
         {
-            return FilterVerdict.Deny("okno potomne");
+            return FilterVerdict.Deny("child window");
         }
 
         if (info.Owner != IntPtr.Zero)
         {
-            return FilterVerdict.Deny("okno posiada właściciela");
+            return FilterVerdict.Deny("owned window");
         }
 
         if ((info.ExStyle & WS_EX_TOOLWINDOW) != 0)
         {
-            return FilterVerdict.Deny("okno narzędziowe");
+            return FilterVerdict.Deny("tool window");
         }
 
         if (string.IsNullOrWhiteSpace(info.Title))
         {
-            return FilterVerdict.Deny("pusty tytuł");
+            return FilterVerdict.Deny("empty title");
         }
 
         if (info.Rect.Width <= 0 || info.Rect.Height <= 0)
         {
-            return FilterVerdict.Deny("zerowy rozmiar");
+            return FilterVerdict.Deny("zero size");
         }
 
         if (info.Handle == GetShellWindow())
         {
-            return FilterVerdict.Deny("okno powłoki");
+            return FilterVerdict.Deny("shell window");
         }
 
         if (BlockedClasses.Contains(info.ClassName))
         {
-            return FilterVerdict.Deny("klasa systemowa: " + info.ClassName);
+            return FilterVerdict.Deny("system class: " + info.ClassName);
         }
 
         if (string.IsNullOrEmpty(info.ProcessName))
         {
             // Typically an elevated process this app may not query; never guess.
-            return FilterVerdict.Deny("proces niedostępny (prawdopodobnie podniesione uprawnienia)");
+            return FilterVerdict.Deny("process not accessible (probably elevated)");
         }
 
         if (BlockedProcesses.Contains(info.ProcessName))
         {
-            return FilterVerdict.Deny("proces systemowy: " + info.ProcessName);
+            return FilterVerdict.Deny("system process: " + info.ProcessName);
         }
 
         if (WindowQuery.Matches(info, config.PanelRule))
         {
-            return FilterVerdict.Deny("to jest SensorPanel");
+            return FilterVerdict.Deny("this is the SensorPanel");
         }
 
         if (string.Equals(info.ProcessName, "aida64", StringComparison.OrdinalIgnoreCase))
         {
-            return FilterVerdict.Deny("okno AIDA64");
+            return FilterVerdict.Deny("AIDA64 window");
         }
 
         if (DwmInterop.IsCloaked(info.Handle))
         {
-            return FilterVerdict.Deny("okno ukryte przez DWM");
+            return FilterVerdict.Deny("cloaked by DWM");
         }
 
         if (IsFullscreenOn(info, sourceMonitor))
         {
-            return FilterVerdict.Deny("okno pełnoekranowe");
+            return FilterVerdict.Deny("full-screen window");
         }
 
         foreach (var exception in config.Exceptions)
         {
             if (WindowQuery.Matches(info, exception))
             {
-                return FilterVerdict.Deny("wyjątek użytkownika: " + exception);
+                return FilterVerdict.Deny("user exception: " + exception);
             }
         }
 

@@ -25,9 +25,6 @@ public sealed class MonitorInfo
 
     public IntPtr Handle { get; init; }
 
-    public string DisplayLabel =>
-        $"{FriendlyName} ({Bounds.Width}x{Bounds.Height} @ {Bounds.X},{Bounds.Y})"
-        + (IsPrimary ? " [główny]" : string.Empty);
 
     public override string ToString() => $"{FriendlyName} [{StableId}] {Bounds}";
 }

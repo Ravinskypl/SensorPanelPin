@@ -5,6 +5,7 @@ using System.Windows.Interop;
 using SensorPanelPin.Config;
 using SensorPanelPin.Core;
 using SensorPanelPin.Diagnostics;
+using SensorPanelPin.Localization;
 using Forms = System.Windows.Forms;
 
 namespace SensorPanelPin.UI;
@@ -42,11 +43,11 @@ public sealed class TrayController : IDisposable
         _pauseItem = new MenuItem();
         _pauseItem.Click += (_, _) => TogglePause();
 
-        var open = new MenuItem { Header = "Otwórz ustawienia", FontWeight = FontWeights.SemiBold };
+        var open = new MenuItem { Header = Strings.TrayOpenSettings, FontWeight = FontWeights.SemiBold };
         open.Click += (_, _) => OpenSettings();
-        var fix = new MenuItem { Header = "Popraw położenie teraz" };
+        var fix = new MenuItem { Header = Strings.TrayFixNow };
         fix.Click += (_, _) => _service.ForceNow();
-        var exit = new MenuItem { Header = "Zamknij SensorPanelPin" };
+        var exit = new MenuItem { Header = Strings.TrayExit };
         exit.Click += (_, _) => Exit();
 
         _menu = new ContextMenu { Placement = PlacementMode.MousePoint };
@@ -57,7 +58,7 @@ public sealed class TrayController : IDisposable
         _menu.Items.Add(_pauseItem);
         if (!Elevation.IsElevated())
         {
-            var elevate = new MenuItem { Header = "Uruchom ponownie jako administrator" };
+            var elevate = new MenuItem { Header = Strings.TrayRestartElevated };
             elevate.Click += (_, _) => RestartElevated();
             _menu.Items.Add(elevate);
         }
@@ -102,8 +103,8 @@ public sealed class TrayController : IDisposable
         // If the log refused to write through a planted link, the log itself cannot say so.
         if (_log.DisabledReason is not null)
         {
-            _tray.ShowBalloonTip(15000, "Log jest wyłączony",
-                "Zapis logu wyłączono ze względów bezpieczeństwa: " + _log.DisabledReason, Forms.ToolTipIcon.Warning);
+            _tray.ShowBalloonTip(15000, Strings.TrayLogDisabledTitle,
+                Strings.TrayLogDisabledFormat(_log.DisabledReason), Forms.ToolTipIcon.Warning);
         }
     }
 
@@ -173,7 +174,7 @@ public sealed class TrayController : IDisposable
 
     private void Exit()
     {
-        _log.Info("Zamykanie na żądanie użytkownika.");
+        _log.Info("Closing at the user's request.");
         _settings?.Close();
         _tray.Visible = false;
         Application.Current.Shutdown();
@@ -182,7 +183,7 @@ public sealed class TrayController : IDisposable
     private void UpdateTray(ServiceStatus status)
     {
         _statusItem.Header = status.ShortText + " — " + status.Message;
-        _pauseItem.Header = _service.IsPaused ? "Wznów pilnowanie" : "Wstrzymaj pilnowanie";
+        _pauseItem.Header = _service.IsPaused ? Strings.TrayResume : Strings.TrayPause;
         _tray.Icon = _service.IsPaused ? AppIcon.TrayPaused : AppIcon.Tray;
 
         // NotifyIcon truncates the tooltip at 63 characters.
@@ -194,9 +195,8 @@ public sealed class TrayController : IDisposable
             _elevationNoticeShown = true;
             _tray.ShowBalloonTip(
                 10000,
-                "Panel nie może być przesuwany",
-                "AIDA64 działa jako administrator, więc Windows nie pozwala przesunąć jej okna. "
-                + "Wybierz z menu ikony „Uruchom ponownie jako administrator”.",
+                Strings.TrayElevationTitle,
+                Strings.TrayElevationText,
                 Forms.ToolTipIcon.Warning);
         }
     }

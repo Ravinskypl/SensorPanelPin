@@ -29,6 +29,6 @@ Uninstall
 Run Uninstall.cmd (also copied to C:\Program Files\SensorPanelPin) and approve the prompt.
 It removes the program, its autostart entry, and its settings and logs.
 
-The interface is in Polish for now.
+The interface is in English, or in Polish when Windows is set to Polish.
 
 License: MIT, see LICENSE.txt. Not affiliated with FinalWire Ltd., the maker of AIDA64.

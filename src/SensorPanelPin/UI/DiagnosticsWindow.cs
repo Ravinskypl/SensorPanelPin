@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using SensorPanelPin.Localization;
 
 namespace SensorPanelPin.UI;
 
@@ -9,7 +10,7 @@ public sealed class DiagnosticsWindow : Window
 {
     public DiagnosticsWindow(string report)
     {
-        Title = "Okna AIDA64";
+        Title = Strings.DiagnosticsWindowTitle;
         Icon = AppIcon.WindowSource;
         Width = 980;
         Height = 560;
@@ -19,8 +20,7 @@ public sealed class DiagnosticsWindow : Window
 
         var intro = new TextBlock
         {
-            Text = "Okno oznaczone „PASUJE DO REGUŁY” jest traktowane jako SensorPanel. Jeśli nic nie jest "
-                   + "oznaczone, popraw pola „Jak rozpoznać okno panelu”.",
+            Text = Strings.DiagnosticsIntro,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 12),
         };
@@ -37,9 +37,9 @@ public sealed class DiagnosticsWindow : Window
             FontSize = 12,
         };
 
-        var copy = new Button { Content = "Kopiuj", MinWidth = 110 };
+        var copy = new Button { Content = Strings.CopyButton, MinWidth = 110 };
         copy.Click += (_, _) => Clipboard.SetText(report);
-        var close = new Button { Content = "Zamknij", MinWidth = 110, Margin = new Thickness(8, 0, 0, 0), IsCancel = true };
+        var close = new Button { Content = Strings.CloseButton, MinWidth = 110, Margin = new Thickness(8, 0, 0, 0), IsCancel = true };
         close.Click += (_, _) => Close();
         if (TryFindResource("AccentButtonStyle") is Style accent)
         {

@@ -3,6 +3,7 @@ using System.Windows.Threading;
 using SensorPanelPin.Config;
 using SensorPanelPin.Core;
 using SensorPanelPin.Diagnostics;
+using SensorPanelPin.Localization;
 using SensorPanelPin.UI;
 
 namespace SensorPanelPin;
@@ -21,7 +22,7 @@ internal static class Program
         if (!isFirstInstance && !WaitForPreviousInstance(mutex, args))
         {
             MessageBox.Show(
-                "SensorPanelPin już działa — ikona znajduje się w zasobniku systemowym.",
+                Strings.AlreadyRunning,
                 "SensorPanelPin",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
@@ -31,8 +32,7 @@ internal static class Program
         if (LegacyInstanceRunning())
         {
             MessageBox.Show(
-                "Działa jeszcze poprzednia wersja tego programu (SensorPanelGlue). Dwie kopie walczyłyby "
-                + "o te same okna.\n\nZamknij ją z menu jej ikony w zasobniku i uruchom SensorPanelPin ponownie.",
+                Strings.LegacyRunning,
                 "SensorPanelPin",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
@@ -48,7 +48,7 @@ internal static class Program
             : LogLevel.Info;
 
         log.Info("=== SensorPanelPin start ===");
-        log.Info("Wersja: " + (typeof(Program).Assembly.GetName().Version?.ToString() ?? "?"));
+        log.Info("Version: " + (typeof(Program).Assembly.GetName().Version?.ToString() ?? "?"));
 
         // Fluent: the Windows 11 look, following the system light/dark setting and accent colour.
         var app = new Application
@@ -63,7 +63,7 @@ internal static class Program
 
         app.DispatcherUnhandledException += (_, e) =>
         {
-            log.Error("Nieobsłużony wyjątek w wątku UI.", e.Exception);
+            log.Error("Unhandled exception on the UI thread.", e.Exception);
             e.Handled = true;
         };
 
@@ -71,7 +71,7 @@ internal static class Program
         {
             if (e.ExceptionObject is Exception ex)
             {
-                log.Error("Nieobsłużony wyjątek.", ex);
+                log.Error("Unhandled exception.", ex);
             }
         };
 
@@ -84,9 +84,9 @@ internal static class Program
         }
         catch (Exception ex)
         {
-            log.Error("Aplikacja zakończyła się błędem.", ex);
+            log.Error("The application ended with an error.", ex);
             MessageBox.Show(
-                "SensorPanelPin napotkał błąd i zostanie zamknięty.\n\nSzczegóły w logu:\n" + log.LogFilePath,
+                Strings.FatalErrorFormat(log.LogFilePath),
                 "SensorPanelPin",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);

@@ -58,7 +58,7 @@ public sealed class SafeDirectory
             if ((attributes & FileAttributes.ReparsePoint) != 0)
             {
                 throw new UnsafePathException(
-                    $"Katalog „{current}” jest dowiązaniem (junction/symlink) — odmawiam zapisu.");
+                    $"The folder \"{current}\" is a link (junction or symlink); refusing to write.");
             }
 
             current = System.IO.Path.GetDirectoryName(current);
@@ -75,7 +75,7 @@ public sealed class SafeDirectory
 
         if (handle.IsInvalid)
         {
-            throw new IOException($"Nie można otworzyć katalogu „{full}”.", new Win32Exception(Marshal.GetLastWin32Error()));
+            throw new IOException($"Cannot open the folder \"{full}\".", new Win32Exception(Marshal.GetLastWin32Error()));
         }
 
         return new SafeDirectory(full, FinalPath(handle));
@@ -93,7 +93,7 @@ public sealed class SafeDirectory
         if (fileName.IndexOfAny(System.IO.Path.GetInvalidFileNameChars()) >= 0
             || fileName.Contains(System.IO.Path.DirectorySeparatorChar))
         {
-            throw new ArgumentException("Oczekiwano samej nazwy pliku.", nameof(fileName));
+            throw new ArgumentException("Expected a bare file name.", nameof(fileName));
         }
 
         var stream = new FileStream(Combine(fileName), mode, access, share);
@@ -113,18 +113,18 @@ public sealed class SafeDirectory
     {
         if (!GetFileInformationByHandle(handle, out var info))
         {
-            throw new IOException("GetFileInformationByHandle nie powiodło się.", new Win32Exception(Marshal.GetLastWin32Error()));
+            throw new IOException("GetFileInformationByHandle failed.", new Win32Exception(Marshal.GetLastWin32Error()));
         }
 
         if (((FileAttributes)info.FileAttributes & FileAttributes.ReparsePoint) != 0)
         {
-            throw new UnsafePathException($"Plik „{fileName}” jest dowiązaniem — odmawiam zapisu.");
+            throw new UnsafePathException($"The file \"{fileName}\" is a link; refusing to write.");
         }
 
         if (info.NumberOfLinks != 1)
         {
             throw new UnsafePathException(
-                $"Plik „{fileName}” ma {info.NumberOfLinks} dowiązania twarde — odmawiam zapisu.");
+                $"The file \"{fileName}\" has {info.NumberOfLinks} hard links; refusing to write.");
         }
 
         var expected = _finalPath.TrimEnd('\\') + "\\" + fileName;
@@ -132,7 +132,7 @@ public sealed class SafeDirectory
         if (!string.Equals(expected, actual, StringComparison.OrdinalIgnoreCase))
         {
             throw new UnsafePathException(
-                $"Plik „{fileName}” prowadzi do „{actual}” zamiast „{expected}” — odmawiam zapisu.");
+                $"The file \"{fileName}\" leads to \"{actual}\" instead of \"{expected}\"; refusing to write.");
         }
     }
 
@@ -142,7 +142,7 @@ public sealed class SafeDirectory
         var length = GetFinalPathNameByHandle(handle, buffer, (uint)buffer.Capacity, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
         if (length == 0)
         {
-            throw new IOException("GetFinalPathNameByHandle nie powiodło się.", new Win32Exception(Marshal.GetLastWin32Error()));
+            throw new IOException("GetFinalPathNameByHandle failed.", new Win32Exception(Marshal.GetLastWin32Error()));
         }
 
         if (length >= buffer.Capacity)
@@ -151,7 +151,7 @@ public sealed class SafeDirectory
             length = GetFinalPathNameByHandle(handle, buffer, (uint)buffer.Capacity, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
             if (length == 0 || length >= buffer.Capacity)
             {
-                throw new IOException("GetFinalPathNameByHandle nie powiodło się.");
+                throw new IOException("GetFinalPathNameByHandle failed.");
             }
         }
 

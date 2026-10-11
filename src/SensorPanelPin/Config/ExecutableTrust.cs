@@ -1,5 +1,6 @@
 using System.Security.AccessControl;
 using System.Security.Principal;
+using SensorPanelPin.Localization;
 
 namespace SensorPanelPin.Config;
 
@@ -64,7 +65,7 @@ public static class ExecutableTrust
     /// <summary>
     /// True when only administrators can change the program at <paramref name="executablePath"/>,
     /// the files beside it, and the directories leading to it. Otherwise <paramref name="reason"/>
-    /// names the first problem found.
+    /// names the first problem found, in the user's language: it is shown in the settings window.
     /// </summary>
     public static bool IsProtected(string executablePath, out string reason)
     {
@@ -73,7 +74,7 @@ public static class ExecutableTrust
             var exe = new FileInfo(Path.GetFullPath(executablePath));
             if (!exe.Exists)
             {
-                reason = $"Plik „{exe.FullName}” nie istnieje.";
+                reason = Strings.TrustFileMissingFormat(exe.FullName);
                 return false;
             }
 
@@ -106,7 +107,7 @@ public static class ExecutableTrust
         catch (Exception ex)
         {
             // Unreadable permissions are not evidence of safety.
-            reason = "Nie udało się odczytać uprawnień: " + ex.Message;
+            reason = Strings.TrustUnreadableFormat(ex.Message);
             return false;
         }
     }
@@ -118,7 +119,7 @@ public static class ExecutableTrust
         // An owner can always rewrite the permissions, whatever the ACL says.
         if (owner is not null && !TrustedSids.Contains(owner.Value))
         {
-            reason = $"„{path}” należy do {Describe(owner)}, a nie do administratorów.";
+            reason = Strings.TrustOwnerFormat(path, Describe(owner));
             return false;
         }
 
@@ -143,7 +144,7 @@ public static class ExecutableTrust
 
             if ((rule.FileSystemRights & dangerous) != 0)
             {
-                reason = $"„{path}” może modyfikować {Describe(sid)} ({rule.FileSystemRights}).";
+                reason = Strings.TrustWritableFormat(path, Describe(sid), rule.FileSystemRights);
                 return false;
             }
         }

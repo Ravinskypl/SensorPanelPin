@@ -34,7 +34,7 @@ public sealed class WindowInfo
     /// diagnosis, while full titles - document names, mail subjects, URLs - do not pile up on disk.
     /// </summary>
     public string Describe() =>
-        $"hwnd=0x{Handle.ToInt64():X} proces='{ProcessName}' klasa='{ClassName}' tytuł='{Shorten(Title)}' rect={Rect}";
+        $"hwnd=0x{Handle.ToInt64():X} process='{ProcessName}' class='{ClassName}' title='{Shorten(Title)}' rect={Rect}";
 
     internal const int LoggedTitleLength = 60;
 

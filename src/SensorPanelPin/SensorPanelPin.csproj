@@ -37,7 +37,9 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- No InvariantGlobalization: WPF resolves a specific culture for every binding in a template,
          and with invariant mode every templated control throws XamlParseException at load. -->
-    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- English is built in; Polish ships as a satellite and is picked when Windows is in Polish. -->
+    <SatelliteResourceLanguages>en;pl</SatelliteResourceLanguages>
+    <NeutralLanguage>en</NeutralLanguage>
     <Version>2.0.0</Version>
     <Product>SensorPanelPin</Product>
   </PropertyGroup>

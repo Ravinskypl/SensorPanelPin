@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using SensorPanelPin.Config;
 using SensorPanelPin.Diagnostics;
+using SensorPanelPin.Localization;
 using SensorPanelPin.Monitors;
 using SensorPanelPin.Windows;
 using static SensorPanelPin.Interop.NativeMethods;
@@ -82,7 +83,7 @@ public sealed class PinService : IDisposable
     private int _altTabFailures;
     private bool _altTabGivenUp;
 
-    private ServiceStatus _status = new(ServiceState.Stopped, "Nie uruchomiono.");
+    private ServiceStatus _status = new(ServiceState.Stopped, Strings.ServiceNotStarted);
 
     public PinService(Logger log, ConfigStore store, AppConfig config)
     {
@@ -152,11 +153,11 @@ public sealed class PinService : IDisposable
         Volatile.Write(ref _lastTickUtcTicks, DateTime.UtcNow.Ticks);
         _watchdog = new System.Threading.Timer(Watch, null, WatchdogInterval, WatchdogInterval);
 
-        FullSweep("start aplikacji", verbose: true);
+        FullSweep("application start", verbose: true);
         _pollDueUtc = DateTime.UtcNow + PollInterval;
         ScheduleNext();
 
-        _log.Info(_paused ? "Uruchomiono w trybie wstrzymanym." : "Uruchomiono.");
+        _log.Info(_paused ? "Started, paused." : "Started.");
     }
 
     public void SetPaused(bool paused)
@@ -167,16 +168,16 @@ public sealed class PinService : IDisposable
         }
 
         _paused = paused;
-        _log.Info(paused ? "Wstrzymano pilnowanie." : "Wznowiono pilnowanie.");
+        _log.Info(paused ? "Pinning paused." : "Pinning resumed.");
 
         if (paused)
         {
             ClearPending();
-            UpdateStatus(ServiceState.Paused, "Wstrzymane przez użytkownika.");
+            UpdateStatus(ServiceState.Paused, Strings.ServicePausedByUser);
         }
         else
         {
-            FullSweep("wznowienie", verbose: true);
+            FullSweep("resume", verbose: true);
         }
     }
 
@@ -185,7 +186,7 @@ public sealed class PinService : IDisposable
         WindowQuery.InvalidateProcessCache();
         _panelBackoffUntil = DateTime.MinValue;
         _panelCorrections = 0;
-        FullSweep("wymuszenie ręczne", verbose: true);
+        FullSweep("manual fix", verbose: true);
     }
 
     public void ApplyConfig(AppConfig config)
@@ -203,7 +204,7 @@ public sealed class PinService : IDisposable
         _log.ResetThrottle("panel-missing");
         _log.ResetThrottle("monitor-missing");
 
-        FullSweep("zmiana konfiguracji", verbose: true);
+        FullSweep("configuration change", verbose: true);
         _pollDueUtc = DateTime.UtcNow + PollInterval;
         ScheduleNext();
     }
@@ -222,14 +223,14 @@ public sealed class PinService : IDisposable
         var panel = FindPanel(rule);
         if (panel is null)
         {
-            message = "Nie znaleziono okna SensorPanel. Uruchom AIDA64 i włącz SensorPanel.";
+            message = Strings.MeasureNoPanel;
             return false;
         }
 
         monitor = _monitors.FromRect(panel.Rect);
         if (monitor is null)
         {
-            message = "Nie udało się ustalić monitora, na którym znajduje się panel.";
+            message = Strings.MeasureNoMonitor;
             return false;
         }
 
@@ -241,7 +242,7 @@ public sealed class PinService : IDisposable
             Height = panel.Rect.Height,
         };
 
-        message = $"Zmierzono pozycję panelu na ekranie „{monitor.FriendlyName}”.";
+        message = Strings.MeasuredFormat(monitor.FriendlyName);
         return true;
     }
 
@@ -266,14 +267,17 @@ public sealed class PinService : IDisposable
     /// <summary>Lets windows given up on by the ping-pong guard be moved again.</summary>
     public void ForgiveProblemWindows() => _guard.Clear();
 
-    /// <summary>Dumps every top-level window of the process named by <paramref name="rule"/> to the log.</summary>
+    /// <summary>
+    /// Dumps every top-level window of the process named by <paramref name="rule"/> to the log. In English
+    /// whatever the interface language, like the log: it is meant to be pasted into a bug report.
+    /// </summary>
     public string RunDiagnostics(WindowRule rule)
     {
         _monitors.Refresh();
         var sb = new StringBuilder();
-        sb.AppendLine("=== Diagnostyka SensorPanelPin ===");
+        sb.AppendLine("=== SensorPanelPin diagnostics ===");
 
-        sb.AppendLine("Monitory:");
+        sb.AppendLine("Monitors:");
         foreach (var monitor in _monitors.Monitors)
         {
             sb.AppendLine($"  {monitor.FriendlyName} | GDI={monitor.GdiDeviceName} | DPI={monitor.Dpi} "
@@ -282,22 +286,22 @@ public sealed class PinService : IDisposable
         }
 
         var processFilter = string.IsNullOrWhiteSpace(rule.ProcessName) ? "aida64" : rule.ProcessName.Trim();
-        sb.AppendLine($"Okna procesu pasującego do „{processFilter}”:");
+        sb.AppendLine($"Windows of processes matching \"{processFilter}\":");
 
         var windows = WindowQuery.EnumerateTopLevel(info => Wildcard.IsMatch(info.ProcessName, processFilter));
         if (windows.Count == 0)
         {
-            sb.AppendLine("  (brak — czy AIDA64 jest uruchomiona?)");
+            sb.AppendLine("  (none - is AIDA64 running?)");
         }
 
         foreach (var info in windows)
         {
             var monitor = _monitors.FromRect(info.Rect);
-            var matches = WindowQuery.Matches(info, rule) ? " <== PASUJE DO REGUŁY" : string.Empty;
+            var matches = WindowQuery.Matches(info, rule) ? " <== MATCHES RULE" : string.Empty;
             sb.AppendLine(
                 $"  hwnd=0x{info.Handle.ToInt64():X} vis={info.IsVisible} owner=0x{info.Owner.ToInt64():X} "
                 + $"style=0x{info.Style:X8} ex=0x{info.ExStyle:X8} rect={info.Rect} "
-                + $"monitor={monitor?.FriendlyName ?? "?"} klasa='{info.ClassName}' tytuł='{info.Title}'{matches}");
+                + $"monitor={monitor?.FriendlyName ?? "?"} class='{info.ClassName}' title='{info.Title}'{matches}");
         }
 
         var report = sb.ToString();
@@ -328,7 +332,7 @@ public sealed class PinService : IDisposable
 
         if (Interlocked.Exchange(ref _stallReported, 0) == 1)
         {
-            _log.Info("Pętla główna znów reaguje.");
+            _log.Info("The main loop responds again.");
         }
 
         try
@@ -343,7 +347,7 @@ public sealed class PinService : IDisposable
                 _sweepDueUtc = DateTime.MaxValue;
                 _layoutFirstUtc = DateTime.MaxValue;
                 WindowQuery.InvalidateProcessCache();
-                FullSweep("po zmianie układu ekranów", verbose: true);
+                FullSweep("after a screen layout change", verbose: true);
             }
 
             if (now >= _recheckDueUtc)
@@ -355,12 +359,12 @@ public sealed class PinService : IDisposable
             if (now >= _pollDueUtc)
             {
                 _pollDueUtc = now + PollInterval;
-                FullSweep("poll bezpieczeństwa", verbose: false);
+                FullSweep("safety poll", verbose: false);
             }
         }
         catch (Exception ex)
         {
-            _log.Error("Błąd w pętli głównej.", ex);
+            _log.Error("Error in the main loop.", ex);
         }
         finally
         {
@@ -401,8 +405,8 @@ public sealed class PinService : IDisposable
 
             if (silent > limit && Interlocked.Exchange(ref _stallReported, 1) == 0)
             {
-                _log.Warn($"Pętla główna nie odpowiada od {silent.TotalSeconds:0} s — zdarzenia okien "
-                          + "i zmiany ekranów nie są w tym czasie obsługiwane.");
+                _log.Warn($"The main loop has not responded for {silent.TotalSeconds:0} s; window events "
+                          + "and screen changes are not handled meanwhile.");
             }
         }
         catch (Exception)
@@ -419,7 +423,7 @@ public sealed class PinService : IDisposable
         {
             if (_paused)
             {
-                _log.Info("Zdarzenie systemowe: " + reason + " — pilnowanie wstrzymane, pomijam.");
+                _log.Info("System event: " + reason + "; pinning is paused, skipped.");
                 return;
             }
 
@@ -433,12 +437,12 @@ public sealed class PinService : IDisposable
             _sweepDueUtc = Debounce.DueAt(
                 _layoutFirstUtc, now, TimeSpan.FromMilliseconds(_config.DisplayChangeDelayMs), MaxLayoutDefer);
 
-            _log.Info($"Zdarzenie systemowe: {reason} — pełne wymuszenie o {_sweepDueUtc.ToLocalTime():HH:mm:ss.fff}.");
+            _log.Info($"System event: {reason}; full enforcement at {_sweepDueUtc.ToLocalTime():HH:mm:ss.fff}.");
             _clock?.WakeAt(_sweepDueUtc);
         }
         catch (Exception ex)
         {
-            _log.Error("Nie udało się zaplanować wymuszenia po zdarzeniu systemowym.", ex);
+            _log.Error("Could not schedule enforcement after a system event.", ex);
         }
     }
 
@@ -518,7 +522,7 @@ public sealed class PinService : IDisposable
             }
             catch (Exception ex)
             {
-                _log.Error($"Błąd przy obsłudze okna 0x{hwnd.ToInt64():X}.", ex);
+                _log.Error($"Error handling window 0x{hwnd.ToInt64():X}.", ex);
             }
         }
 
@@ -539,8 +543,8 @@ public sealed class PinService : IDisposable
 
         if (_paused)
         {
-            UpdateStatus(ServiceState.Paused, "Wstrzymane przez użytkownika.");
-            _log.Debug("Pominięto wymuszenie układu (" + reason + ") — pilnowanie wstrzymane.");
+            UpdateStatus(ServiceState.Paused, Strings.ServicePausedByUser);
+            _log.Debug("Skipped enforcement (" + reason + "); pinning is paused.");
 
             // The pulse matters most here: a paused service is otherwise completely silent.
             Heartbeat();
@@ -555,11 +559,11 @@ public sealed class PinService : IDisposable
 
             if (verbose)
             {
-                _log.Info("Pełne wymuszenie układu: " + reason);
+                _log.Info("Full enforcement: " + reason);
             }
             else
             {
-                _log.Debug("Pełne wymuszenie układu: " + reason);
+                _log.Debug("Full enforcement: " + reason);
             }
 
             EnforcePanel();
@@ -568,7 +572,7 @@ public sealed class PinService : IDisposable
         }
         catch (Exception ex)
         {
-            _log.Error("Błąd podczas wymuszania układu (" + reason + ").", ex);
+            _log.Error("Error during enforcement (" + reason + ").", ex);
         }
     }
 
@@ -590,10 +594,10 @@ public sealed class PinService : IDisposable
         var target = _monitors.FindById(_config.PanelMonitorId);
 
         _log.Info(
-            $"Puls: monitory={_monitors.Monitors.Count} spójny={_monitors.LayoutIsConsistent} "
-            + $"ekran docelowy={(target is null ? "brak" : target.Bounds.ToString())} "
-            + $"panel={(panel is null ? "nie znaleziony" : panel.Rect.ToString())} "
-            + $"stan={_status.ShortText} utracone wpisy logu={_log.DroppedLines}");
+            $"Pulse: monitors={_monitors.Monitors.Count} consistent={_monitors.LayoutIsConsistent} "
+            + $"target={(target is null ? "none" : target.Bounds.ToString())} "
+            + $"panel={(panel is null ? "not found" : panel.Rect.ToString())} "
+            + $"state={_status.State} lostLogLines={_log.DroppedLines}");
     }
 
     private void EnforcePanel()
@@ -603,8 +607,8 @@ public sealed class PinService : IDisposable
         {
             _panelHwnd = IntPtr.Zero;
             _log.Throttled("panel-missing", TimeSpan.FromMinutes(5), LogLevel.Info,
-                "Nie znaleziono okna SensorPanel (reguła: " + _config.PanelRule + "). Czekam.");
-            UpdateStatus(ServiceState.WaitingForPanel, "Nie znaleziono okna SensorPanel.");
+                "No SensorPanel window found (rule: " + _config.PanelRule + "). Waiting.");
+            UpdateStatus(ServiceState.WaitingForPanel, Strings.StatusPanelNotFound);
             return;
         }
 
@@ -615,15 +619,15 @@ public sealed class PinService : IDisposable
         {
             // Never park the panel on a substitute screen; wait for the real one to come back.
             _log.Throttled("monitor-missing", TimeSpan.FromMinutes(5), LogLevel.Warn,
-                "Docelowy monitor panelu jest niedostępny — nie przenoszę panelu. Id: "
-                + (string.IsNullOrEmpty(_config.PanelMonitorId) ? "(nie wybrano)" : _config.PanelMonitorId));
+                "The panel's target monitor is not available; the panel is left where it is. Id: "
+                + (string.IsNullOrEmpty(_config.PanelMonitorId) ? "(none chosen)" : _config.PanelMonitorId));
 
             // So the first blocked correction after the monitor returns is reported immediately.
             _log.ResetThrottle("panel-blocked");
             UpdateStatus(ServiceState.WaitingForMonitor,
                 string.IsNullOrEmpty(_config.PanelMonitorId)
-                    ? "Nie wybrano ekranu dla SensorPanela."
-                    : "Docelowy ekran jest niedostępny.");
+                    ? Strings.StatusNoScreenChosen
+                    : Strings.StatusTargetUnavailable);
             return;
         }
 
@@ -642,7 +646,7 @@ public sealed class PinService : IDisposable
                     Height = panel.Rect.Height,
                 };
                 _store.Save(_config);
-                _log.Info("Zapamiętano bieżącą pozycję panelu jako docelową.");
+                _log.Info("Remembered the panel's current position as its target.");
             }
         }
 
@@ -651,9 +655,9 @@ public sealed class PinService : IDisposable
             // Windows is mid-transition and the coordinates cannot be trusted; the next sweep
             // will act on a settled layout.
             _log.Throttled("layout-unstable", TimeSpan.FromMinutes(1), LogLevel.Warn,
-                "Układ ekranów jest w trakcie zmiany (monitory nachodzą na siebie) — "
-                + "nie ruszam panelu do czasu ustabilizowania.");
-            UpdateStatus(ServiceState.WaitingForMonitor, "Układ ekranów się zmienia.");
+                "The screen layout is changing (monitors overlap); the panel is left alone until it "
+                + "settles.");
+            UpdateStatus(ServiceState.WaitingForMonitor, Strings.StatusLayoutChanging);
             return;
         }
 
@@ -671,10 +675,10 @@ public sealed class PinService : IDisposable
         if (landing is null || landing.StableId != target.StableId)
         {
             _log.Throttled("bad-destination", TimeSpan.FromMinutes(1), LogLevel.Warn,
-                $"Odrzucam przeniesienie panelu do {desired}: to miejsce leży na "
-                + $"„{landing?.FriendlyName ?? "nieznanym ekranie"}”, a nie na „{target.FriendlyName}” "
-                + $"({target.Bounds}). Prawdopodobnie Windows raportuje monitor w trakcie zmiany.");
-            UpdateStatus(ServiceState.WaitingForMonitor, "Współrzędne ekranu docelowego są niewiarygodne.");
+                $"Refusing to move the panel to {desired}: that lies on "
+                + $"\"{landing?.FriendlyName ?? "an unknown screen"}\", not on \"{target.FriendlyName}\" "
+                + $"({target.Bounds}). Windows is probably reporting a monitor mid-change.");
+            UpdateStatus(ServiceState.WaitingForMonitor, Strings.StatusCoordinatesUnreliable);
             return;
         }
 
@@ -689,7 +693,7 @@ public sealed class PinService : IDisposable
         {
             if (DateTime.UtcNow < _panelBackoffUntil)
             {
-                UpdateStatus(ServiceState.Active, "Panel wraca sam — chwilowa przerwa w korygowaniu.");
+                UpdateStatus(ServiceState.Active, Strings.StatusBackoff);
                 return;
             }
 
@@ -701,7 +705,7 @@ public sealed class PinService : IDisposable
             {
                 case MoveOutcome.Success:
                     SetPanelAccessDenied(false);
-                    _log.Info($"Przywrócono SensorPanel na „{target.FriendlyName}” do {desired}.");
+                    _log.Info($"Moved the SensorPanel back to \"{target.FriendlyName}\" at {desired}.");
                     RecordPanelCorrection();
                     break;
 
@@ -711,20 +715,19 @@ public sealed class PinService : IDisposable
                     // Without this the log goes silent exactly when the user is watching: after a
                     // hot-plug the panel visibly stays put and nothing explains why.
                     _log.Throttled("panel-blocked", TimeSpan.FromMinutes(1), LogLevel.Warn,
-                        $"Panel powinien wrócić na „{target.FriendlyName}” do {desired}, ale Windows "
-                        + $"odmawia (obecnie {panel.Rect}). Uruchom SensorPanelPin jako administrator.");
+                        $"The panel should go back to \"{target.FriendlyName}\" at {desired}, but Windows "
+                        + $"refuses (now at {panel.Rect}). SensorPanelPin needs to run as administrator.");
                     break;
             }
         }
 
         if (_panelAccessDenied)
         {
-            UpdateStatus(ServiceState.ElevationRequired,
-                "AIDA64 działa jako administrator — uruchom SensorPanelPin jako administrator.");
+            UpdateStatus(ServiceState.ElevationRequired, Strings.StatusNeedsElevation);
             return;
         }
 
-        UpdateStatus(ServiceState.Active, $"SensorPanel pilnowany na „{target.FriendlyName}”.");
+        UpdateStatus(ServiceState.Active, Strings.StatusPinnedFormat(target.FriendlyName));
     }
 
     private Rectangle ComputePanelTarget(WindowInfo panel, MonitorInfo target)
@@ -784,7 +787,7 @@ public sealed class PinService : IDisposable
 
         if (!SetWindowPos(panel.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE))
         {
-            _log.Warn($"Nie udało się ustawić panelu na wierzchu (błąd {Marshal.GetLastWin32Error()}).");
+            _log.Warn($"Could not set the panel always on top (error {Marshal.GetLastWin32Error()}).");
         }
 
         var applied = (GetWindowLongPtr(panel.Handle, GWL_EXSTYLE).ToInt64() & WS_EX_TOPMOST) != 0;
@@ -792,16 +795,16 @@ public sealed class PinService : IDisposable
         {
             _topmostFailures = 0;
             _topmostReapplications++;
-            _log.Debug("Ustawiono SensorPanel jako zawsze na wierzchu.");
+            _log.Debug("Set the SensorPanel always on top.");
 
             // The call works, yet the flag is gone again by the next sweep: AIDA64 owns this window
             // and keeps clearing it. Say so once instead of quietly fighting forever.
             if (_topmostReapplications == TopmostReapplyWarnAfter)
             {
                 _log.Warn(
-                    $"Flaga „zawsze na wierzchu” była ustawiana {_topmostReapplications} razy i za "
-                    + "każdym razem znika — AIDA64 sama zarządza kolejnością okna. Włącz tę opcję "
-                    + "w ustawieniach SensorPanel w AIDA64; tutaj daje tylko chwilowy efekt.");
+                    $"The always-on-top flag has been set {_topmostReapplications} times and disappears "
+                    + "every time: AIDA64 manages the window's order itself. Turn the option on in the "
+                    + "SensorPanel settings of AIDA64; here it only has a passing effect.");
             }
 
             return;
@@ -815,9 +818,9 @@ public sealed class PinService : IDisposable
 
         _topmostGivenUp = true;
         _log.Warn(
-            "AIDA64 natychmiast zdejmuje z panelu flagę „zawsze na wierzchu”, więc przestaję ją "
-            + $"ustawiać (nieudanych prób: {_topmostFailures}). Włącz tę opcję w samej AIDA64 "
-            + "(ustawienia SensorPanel), albo odznacz ją w SensorPanelPin.");
+            "AIDA64 removes the always-on-top flag from the panel at once, so it is no longer set "
+            + $"(failed attempts: {_topmostFailures}). Turn the option on in AIDA64 itself "
+            + "(SensorPanel settings), or turn it off in SensorPanelPin.");
     }
 
     /// <summary>
@@ -842,7 +845,7 @@ public sealed class PinService : IDisposable
         if (applied)
         {
             _altTabFailures = 0;
-            _log.Debug("Ukryto SensorPanel z Alt+Tab.");
+            _log.Debug("Hid the SensorPanel from Alt+Tab.");
             return;
         }
 
@@ -853,9 +856,9 @@ public sealed class PinService : IDisposable
         }
 
         _altTabGivenUp = true;
-        _log.Warn($"Nie udało się ukryć panelu z Alt+Tab (błąd {error}, prób: {_altTabFailures}) — "
-                  + "przestaję próbować. Przy AIDA64 działającej jako administrator wymaga to uruchomienia "
-                  + "SensorPanelPin jako administrator.");
+        _log.Warn($"Could not hide the panel from Alt+Tab (error {error}, attempts: {_altTabFailures}); "
+                  + "giving up. With AIDA64 running as administrator this needs SensorPanelPin to run as "
+                  + "administrator.");
     }
 
     private void ResetStyleState()
@@ -891,7 +894,7 @@ public sealed class PinService : IDisposable
         if (WindowFilter.IsScreenCaptured())
         {
             _log.Throttled("fullscreen", TimeSpan.FromMinutes(1), LogLevel.Debug,
-                "Tryb pełnoekranowy/prezentacji — nie ruszam okien.");
+                "Full-screen or presentation mode; windows are left alone.");
             return;
         }
 
@@ -949,7 +952,7 @@ public sealed class PinService : IDisposable
         var verdict = _filter.CanRelocate(info, _config, current);
         if (!verdict.Allowed)
         {
-            _log.Debug($"Pomijam okno ({verdict.Reason}): {info.Describe()}");
+            _log.Debug($"Skipping window ({verdict.Reason}): {info.Describe()}");
             return;
         }
 
@@ -957,7 +960,7 @@ public sealed class PinService : IDisposable
         if (host is null || host.StableId == panelMonitor.StableId)
         {
             _log.Throttled("host-invalid", TimeSpan.FromMinutes(5), LogLevel.Warn,
-                "Ekran główny jest ten sam co ekran SensorPanela albo niedostępny — nie przenoszę okien.");
+                "The screen for other windows is the SensorPanel's screen or is not available; windows are not moved.");
             return;
         }
 
@@ -973,14 +976,14 @@ public sealed class PinService : IDisposable
                 // Log where the window ended up, not where it was: the old rect made a move that
                 // never happened look like a success.
                 var after = WindowQuery.Get(info.Handle);
-                _log.Info($"Przeniesiono okno na „{host.FriendlyName}”: {info.Describe()} "
-                          + $"— nowa pozycja {after?.Rect.ToString() ?? "?"}");
+                _log.Info($"Moved a window to \"{host.FriendlyName}\": {info.Describe()} "
+                          + $"- now at {after?.Rect.ToString() ?? "?"}");
                 QueueRecheck(info.Handle);
                 break;
 
             case MoveOutcome.AccessDenied:
                 _log.Throttled("foreign-access-denied", TimeSpan.FromMinutes(10), LogLevel.Warn,
-                    "Brak uprawnień do przeniesienia okna procesu z wyższymi uprawnieniami: "
+                    "No permission to move a window of a process with higher rights: "
                     + info.Describe());
                 break;
         }
@@ -1005,7 +1008,7 @@ public sealed class PinService : IDisposable
         if (found is not null)
         {
             _panelHwnd = found.Handle;
-            _log.Info("Znaleziono SensorPanel: " + found.Describe());
+            _log.Info("Found the SensorPanel: " + found.Describe());
 
             // A recreated panel window deserves a fresh attempt at the styles.
             ResetStyleState();
@@ -1048,13 +1051,13 @@ public sealed class PinService : IDisposable
         if (denied)
         {
             _log.Warn(
-                "Windows nie pozwala tej aplikacji przesuwać okna SensorPanela — AIDA64 działa "
-                + "z wyższymi uprawnieniami niż SensorPanelPin. Użyj „Uruchom ponownie jako "
-                + "administrator” z menu ikony w zasobniku.");
+                "Windows does not let this program move the SensorPanel window: AIDA64 runs with "
+                + "higher rights than SensorPanelPin. Use \"Restart as administrator\" from the tray "
+                + "icon's menu.");
         }
         else
         {
-            _log.Info("Uzyskano dostęp do okna SensorPanela.");
+            _log.Info("Got access to the SensorPanel window.");
         }
     }
 
@@ -1079,8 +1082,8 @@ public sealed class PinService : IDisposable
 
         _panelBackoffUntil = now + PanelBackoffDuration;
         _panelCorrections = 0;
-        _log.Warn($"SensorPanel wraca na złą pozycję mimo {PanelBackoffCorrections} udanych korekt "
-                  + $"w ciągu {PanelBackoffWindow.TotalSeconds:0} s — przerwa {PanelBackoffDuration.TotalSeconds:0} s.");
+        _log.Warn($"The SensorPanel keeps moving away despite {PanelBackoffCorrections} successful corrections "
+                  + $"in {PanelBackoffWindow.TotalSeconds:0} s; pausing for {PanelBackoffDuration.TotalSeconds:0} s.");
     }
 
     private void MarkSelfMoved(IntPtr hwnd)
@@ -1138,7 +1141,7 @@ public sealed class PinService : IDisposable
             }
             catch (Exception ex)
             {
-                _log.Error($"Błąd przy ponownym sprawdzeniu okna 0x{handle.ToInt64():X}.", ex);
+                _log.Error($"Error re-checking window 0x{handle.ToInt64():X}.", ex);
             }
         }
     }

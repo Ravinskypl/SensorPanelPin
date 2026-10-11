@@ -10,7 +10,7 @@ else is allowed to open on top of it.
 > Not affiliated with FinalWire Ltd., the maker of AIDA64. "AIDA64" and "SensorPanel" are used here
 > only to describe what the program works with.
 
-The interface is in Polish for now. This README gives each Polish label with its meaning.
+The interface is in English, or in Polish when Windows is set to Polish. The log is always in English, so it can be shared in an issue.
 
 ---
 
@@ -33,7 +33,7 @@ documented user-mode Win32 APIs.
 1. Download `SensorPanelPin-<version>-win-x64.zip` from
    [Releases](https://github.com/Ravinskypl/SensorPanelPin/releases) and extract it anywhere.
 2. Double-click **`Install.cmd`** and approve the administrator prompt.
-3. Click the tray icon, and on the first page (**Ekrany**, Screens) pick the screen the SensorPanel
+3. Click the tray icon, and on the first page (**Screens**) pick the screen the SensorPanel
    belongs on.
 
 `Install.cmd` copies the program to `C:\Program Files\SensorPanelPin`, creates a logon task that
@@ -66,12 +66,12 @@ prompt. It stops the program and removes its logon task, its registry autostart 
 ### First run
 
 1. Start AIDA64 and turn on the SensorPanel.
-2. Click the tray icon. The settings open on **Ekrany** (Screens), with a map of your monitors.
-3. In **Ekran SensorPanela** (SensorPanel screen), pick the screen for the panel. **Identyfikuj**
-   (Identify) shows each monitor's number from the map on that monitor.
+2. Click the tray icon. The settings open on **Screens**, with a map of your monitors.
+3. In **SensorPanel screen**, pick the screen for the panel. **Identify** shows each monitor's
+   number from the map on that monitor.
 4. If the panel is not exactly where you want it yet, place it by hand and on the **SensorPanel**
-   page press **Zapamiętaj obecne** (Remember current). Otherwise the position is learned the first
-   time the panel appears on its screen.
+   page press **Remember current**. Otherwise the position is learned the first time the panel
+   appears on its screen.
 
 Changes apply at once, as in Windows Settings: there is no Save button.
 
@@ -82,16 +82,16 @@ Changes apply at once, as in Windows Settings: there is no Save button.
 The settings window follows the Windows 11 look: light or dark with the system, the system accent
 colour, Mica background. Four pages:
 
-* **Ekrany** (Screens): a to-scale map of the monitors with the SensorPanel drawn where it really
+* **Screens**: a to-scale map of the monitors with the SensorPanel drawn where it really
   is: in the accent colour when in place, in the warning colour when on another screen, with a
   dashed outline where it should be. The map refreshes every second while the window is open.
   Below it, one sentence about the state and the choice of screen roles.
 * **SensorPanel**: keep position and size, remember the current position, window behaviour. The
-  rule that recognises the panel window is in a collapsed **Zaawansowane** (Advanced) card; the
+  rule that recognises the panel window is in a collapsed **Advanced** card; the
   default fits AIDA64.
-* **Inne okna** (Other windows): moving windows off the panel screen, exceptions, windows that kept
+* **Other windows**: moving windows off the panel screen, exceptions, windows that kept
   coming back.
-* **Uruchamianie** (Startup): autostart, logging and, collapsed, the reaction timings.
+* **Startup**: autostart, logging and, collapsed, the reaction timings.
 
 The tray menu holds only what belongs in a tray: state, open settings, fix the position now, pause,
 and quit.
@@ -106,7 +106,7 @@ call `SetWindowPos` on a window of a higher one: the call fails with `ERROR_ACCE
 **So SensorPanelPin started normally cannot move the AIDA64 panel.**
 
 The app detects this at start with a harmless `SetWindowPos` call that moves nothing, and says so:
-a warning in the log, a notification at the tray icon, and on the **Ekrany** page a yellow bar with
+a warning in the log, a notification at the tray icon, and on the **Screens** page a yellow bar with
 a **Run as administrator** button. The tray menu has the same command.
 
 Elevation is never forced at start: the manifest declares `asInvoker`, and UAC appears only when
@@ -115,7 +115,7 @@ you click that command.
 ### Autostart
 
 A `HKCU\...\Run` entry **cannot start a program elevated**; that is a Windows rule. So the
-**Uruchamianie** page offers three choices:
+**Startup** page offers three choices:
 
 | Choice | What it does |
 |---|---|
@@ -253,7 +253,7 @@ temporary file and a verified handle. Hand-written `null`s are cleaned up on loa
 
 With AIDA64 Extreme v8.35 the panel window has class `TForm_HWMonitoringSensorPanel` and title
 `SensorPanel`, which the default pattern matches. If it ever stops matching,
-**SensorPanel → Zaawansowane → Pokaż okna AIDA64** (Show AIDA64 windows) lists every window of the
+**SensorPanel → Advanced → Show AIDA64 windows** lists every window of the
 process and marks the one that matches.
 
 Logs: `%APPDATA%\SensorPanelPin\logs\sensorpanelpin.log` (rotated at 1 MB × 5 files). The log
@@ -305,12 +305,13 @@ WinForms analyzer that expects the API route (`WFAC010`, `WFO0003` in .NET 10) i
 
 ### Tests
 
-226 xUnit tests that need no desktop: monitor layout consistency (including an incident with a
+392 xUnit tests that need no desktop: monitor layout consistency (including an incident with a
 monitor reported at (0,0)), anti-ping-pong with breaks (an incident with Steam), clock deadline
 arithmetic, refusal to write through junctions and hardlinks, ACL checks (a file in `%TEMP%`
 rejected, `dotnet.exe` in `Program Files` accepted), wildcards, configuration, logging, taking over
-settings from the old name, and runtime switches (WPF cannot run with `InvariantGlobalization`:
-every control template then throws `XamlParseException`).
+settings from the old name, runtime switches (WPF cannot run with `InvariantGlobalization`: every
+control template then throws `XamlParseException`), and the two interface languages: every text
+exists in both with the same placeholders, and no Polish text is left in the code.
 
 ### Measured on real hardware
 
@@ -341,12 +342,11 @@ AIDA64 Extreme v8.35.8400.
 2. **Exclusive full-screen games** are skipped on purpose.
 3. **A window flashes before it is moved**: the reaction takes about 0.2 s.
 4. **Programs that insist on their own position** are left alone after three bursts of moves; they
-   are listed on the **Inne okna** page.
+   are listed on the **Other windows** page.
 5. **Autostart without administrator rights does not manage the panel** if AIDA64 runs as
    administrator.
 6. **"Always on top" may be removed by AIDA64**; turning it on in AIDA64 itself is more reliable.
 7. **Cloned monitors** count as one screen.
-8. **The interface is Polish only** for now.
 
 ---
 
@@ -364,6 +364,7 @@ src/SensorPanelPin/
                           SystemEventWindow, Elevation, ServiceStatus
   Config/                 AppConfig, ConfigStore, AutoStart (Task Scheduler COM API), ExecutableTrust (ACL)
   Diagnostics/            Logger, SafeDirectory (link-resistant writes)
+  Localization/           Strings.resx (English), Strings.pl.resx (Polish), Strings (typed access)
   UI/                     SettingsWindow + Pages/, SettingsViewModel, MonitorMap, TrayController,
                           IdentifyWindow, DiagnosticsWindow, Theme.xaml, AppIcon, IconArtwork
 tests/SensorPanelPin.Tests/   xUnit

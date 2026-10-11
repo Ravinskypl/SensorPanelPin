@@ -37,7 +37,7 @@ public static class AppIcon
     private static System.Windows.Media.ImageSource LoadWindowSource()
     {
         using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(ResourceName)
-                           ?? throw new InvalidOperationException("Brak osadzonego zasobu " + ResourceName);
+                           ?? throw new InvalidOperationException("Missing embedded resource " + ResourceName);
 
         var decoder = new System.Windows.Media.Imaging.IconBitmapDecoder(
             stream,

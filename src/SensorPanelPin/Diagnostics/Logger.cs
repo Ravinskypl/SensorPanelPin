@@ -163,7 +163,7 @@ public sealed class Logger : IDisposable
                 if (_droppedSinceLastWrite > 0)
                 {
                     _writer!.WriteLine(Format(LogLevel.Warn,
-                        $"Utracono {_droppedSinceLastWrite} wpisów logu — plik był niedostępny."));
+                        $"Lost {_droppedSinceLastWrite} log lines while the file was unavailable."));
                     _droppedSinceLastWrite = 0;
                 }
 

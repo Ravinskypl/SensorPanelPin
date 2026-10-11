@@ -1,0 +1,515 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>  <!-- Settings window -->
+  <data name="NavSections" xml:space="preserve">
+    <value>Settings sections</value>
+  </data>
+  <data name="ScreensTitle" xml:space="preserve">
+    <value>Screens</value>
+  </data>
+  <data name="OtherWindowsTitle" xml:space="preserve">
+    <value>Other windows</value>
+  </data>
+  <data name="StartupTitle" xml:space="preserve">
+    <value>Startup</value>
+  </data>
+  <data name="VersionFormat" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="ToggleOn" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="ToggleOff" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <!-- Screens page -->
+  <data name="ScreensMapName" xml:space="preserve">
+    <value>Map of the screens with the SensorPanel&apos;s position</value>
+  </data>
+  <data name="ScreenRolesHeader" xml:space="preserve">
+    <value>Screen roles</value>
+  </data>
+  <data name="PanelScreenHeader" xml:space="preserve">
+    <value>SensorPanel screen</value>
+  </data>
+  <data name="PanelScreenDescription" xml:space="preserve">
+    <value>The panel always belongs here. If this screen goes away, the panel waits for it to come back.</value>
+  </data>
+  <data name="HostScreenHeader" xml:space="preserve">
+    <value>Screen for other windows</value>
+  </data>
+  <data name="HostScreenDescription" xml:space="preserve">
+    <value>Windows that open on the panel screen are moved here.</value>
+  </data>
+  <data name="ScreenNumbersHeader" xml:space="preserve">
+    <value>Screen numbers</value>
+  </data>
+  <data name="ScreenNumbersDescription" xml:space="preserve">
+    <value>Shows each monitor&apos;s number from the map on that monitor.</value>
+  </data>
+  <data name="IdentifyButton" xml:space="preserve">
+    <value>Identify</value>
+  </data>
+  <data name="MainWindowsScreen" xml:space="preserve">
+    <value>Windows main screen</value>
+  </data>
+  <data name="RememberedScreenDisconnected" xml:space="preserve">
+    <value>Remembered screen (not connected now)</value>
+  </data>
+  <data name="StatusInPlaceFormat" xml:space="preserve">
+    <value>The SensorPanel is on {0}.</value>
+  </data>
+  <data name="StatusReturning" xml:space="preserve">
+    <value>The SensorPanel is going back to its screen.</value>
+  </data>
+  <data name="StatusElevation" xml:space="preserve">
+    <value>AIDA64 runs as administrator, so Windows does not allow moving the panel. Run SensorPanelPin as administrator.</value>
+  </data>
+  <data name="RunAsAdministratorButton" xml:space="preserve">
+    <value>Run as administrator</value>
+  </data>
+  <data name="StatusChooseScreen" xml:space="preserve">
+    <value>Choose below which screen the SensorPanel belongs on.</value>
+  </data>
+  <data name="StatusWaitingForScreenFormat" xml:space="preserve">
+    <value>{0} The panel stays where it is until the screen comes back.</value>
+  </data>
+  <data name="StatusNoPanel" xml:space="preserve">
+    <value>No SensorPanel window in sight. Turn on the SensorPanel in AIDA64.</value>
+  </data>
+  <data name="StatusPaused" xml:space="preserve">
+    <value>Pinning is paused.</value>
+  </data>
+  <data name="ResumeButton" xml:space="preserve">
+    <value>Resume</value>
+  </data>
+  <data name="StatusStarting" xml:space="preserve">
+    <value>Starting…</value>
+  </data>
+  <data name="SaveFailed" xml:space="preserve">
+    <value>Could not save the settings to disk. They apply until the program closes; details are in the log.</value>
+  </data>
+  <!-- SensorPanel page -->
+  <data name="PositionHeader" xml:space="preserve">
+    <value>Position</value>
+  </data>
+  <data name="KeepPositionHeader" xml:space="preserve">
+    <value>Keep the panel in place</value>
+  </data>
+  <data name="KeepPositionDescription" xml:space="preserve">
+    <value>Restores the remembered position on the screen. When off, only the screen is kept: the panel stays on the right monitor.</value>
+  </data>
+  <data name="RestoreSizeHeader" xml:space="preserve">
+    <value>Restore the size too</value>
+  </data>
+  <data name="RestoreSizeDescription" xml:space="preserve">
+    <value>When the panel changes size, it goes back to the remembered one.</value>
+  </data>
+  <data name="RememberedPositionHeader" xml:space="preserve">
+    <value>Remembered position</value>
+  </data>
+  <data name="RememberCurrentButton" xml:space="preserve">
+    <value>Remember current</value>
+  </data>
+  <data name="GeometryFormat" xml:space="preserve">
+    <value>{0}, {1} px from the screen&apos;s top-left corner, size {2} × {3}</value>
+  </data>
+  <data name="GeometryNotSet" xml:space="preserve">
+    <value>Not remembered yet. It is learned when the panel first appears on its screen.</value>
+  </data>
+  <data name="PositionRememberedFormat" xml:space="preserve">
+    <value>Remembered the panel&apos;s position on {0}.</value>
+  </data>
+  <data name="WindowBehaviourHeader" xml:space="preserve">
+    <value>Window behaviour</value>
+  </data>
+  <data name="TopmostHeader" xml:space="preserve">
+    <value>Always on top</value>
+  </data>
+  <data name="TopmostDescription" xml:space="preserve">
+    <value>AIDA64 may remove this setting. Turning it on in the SensorPanel options of AIDA64 itself is more reliable.</value>
+  </data>
+  <data name="HideFromAltTabHeader" xml:space="preserve">
+    <value>Hide from window switching</value>
+  </data>
+  <data name="HideFromAltTabDescription" xml:space="preserve">
+    <value>The panel does not show up in Alt+Tab.</value>
+  </data>
+  <data name="AdvancedHeader" xml:space="preserve">
+    <value>Advanced</value>
+  </data>
+  <data name="PanelRuleHeader" xml:space="preserve">
+    <value>How to recognise the panel window</value>
+  </data>
+  <data name="PanelRuleDescription" xml:space="preserve">
+    <value>The defaults fit AIDA64. Change them only if the panel is not found.</value>
+  </data>
+  <data name="RuleProcessHeader" xml:space="preserve">
+    <value>Program</value>
+  </data>
+  <data name="RuleProcessDescription" xml:space="preserve">
+    <value>File name without .exe.</value>
+  </data>
+  <data name="RuleClassHeader" xml:space="preserve">
+    <value>Window class</value>
+  </data>
+  <data name="RuleClassDescription" xml:space="preserve">
+    <value>An asterisk stands for any run of characters, a question mark for one character.</value>
+  </data>
+  <data name="RuleTitleHeader" xml:space="preserve">
+    <value>Window title</value>
+  </data>
+  <data name="RuleTitleDescription" xml:space="preserve">
+    <value>An empty field matches any title.</value>
+  </data>
+  <data name="CheckMatchHeader" xml:space="preserve">
+    <value>Check the match</value>
+  </data>
+  <data name="CheckMatchDescription" xml:space="preserve">
+    <value>Lists every AIDA64 window and marks the one that matches the fields above.</value>
+  </data>
+  <data name="ShowAidaWindowsButton" xml:space="preserve">
+    <value>Show AIDA64 windows</value>
+  </data>
+  <!-- Other windows page -->
+  <data name="RelocateHeader" xml:space="preserve">
+    <value>Move windows off the SensorPanel screen</value>
+  </data>
+  <data name="RelocateDescription" xml:space="preserve">
+    <value>Windows cannot stop programs from opening on a chosen screen. A window that appears there is moved to the screen for other windows.</value>
+  </data>
+  <data name="ExceptionsHeader" xml:space="preserve">
+    <value>Exceptions</value>
+  </data>
+  <data name="ExceptionsDescription" xml:space="preserve">
+    <value>These windows stay where they open.</value>
+  </data>
+  <data name="NoExceptions" xml:space="preserve">
+    <value>No exceptions.</value>
+  </data>
+  <data name="RemoveException" xml:space="preserve">
+    <value>Remove exception</value>
+  </data>
+  <data name="ExceptionProcessName" xml:space="preserve">
+    <value>Exception program</value>
+  </data>
+  <data name="ExceptionTitleLabel" xml:space="preserve">
+    <value>Part of the title (optional)</value>
+  </data>
+  <data name="ExceptionTitleName" xml:space="preserve">
+    <value>Exception title part</value>
+  </data>
+  <data name="AddExceptionButton" xml:space="preserve">
+    <value>Add exception</value>
+  </data>
+  <data name="ExceptionAnyProgram" xml:space="preserve">
+    <value>Any program</value>
+  </data>
+  <data name="ExceptionAllWindows" xml:space="preserve">
+    <value>All windows</value>
+  </data>
+  <data name="ExceptionTitleFormat" xml:space="preserve">
+    <value>Windows titled: {0}</value>
+  </data>
+  <data name="ProblemsHeader" xml:space="preserve">
+    <value>Windows that kept coming back</value>
+  </data>
+  <data name="ProblemsDescription" xml:space="preserve">
+    <value>A window that still comes back to the panel screen after three bursts of moves is left alone until the end of the session.</value>
+  </data>
+  <data name="NoProblems" xml:space="preserve">
+    <value>No window has kept coming back to the panel screen.</value>
+  </data>
+  <data name="ForgiveButton" xml:space="preserve">
+    <value>Let them be moved again</value>
+  </data>
+  <data name="ProblemDescriptionFormat" xml:space="preserve">
+    <value>{0} — {1} (class {2})</value>
+  </data>
+  <!-- Startup page -->
+  <data name="WithWindowsHeader" xml:space="preserve">
+    <value>With Windows</value>
+  </data>
+  <data name="AutoStartOff" xml:space="preserve">
+    <value>Do not start</value>
+  </data>
+  <data name="AutoStartRegistry" xml:space="preserve">
+    <value>Start without administrator rights</value>
+  </data>
+  <data name="AutoStartRegistryDetail" xml:space="preserve">
+    <value>The panel is not managed if AIDA64 runs as administrator: Windows will not let it be moved.</value>
+  </data>
+  <data name="AutoStartElevated" xml:space="preserve">
+    <value>Start with administrator rights</value>
+  </data>
+  <data name="AutoStartElevatedDetail" xml:space="preserve">
+    <value>Through Task Scheduler, with no UAC prompt at each logon. Needs the program installed in Program Files.</value>
+  </data>
+  <data name="StartPausedHeader" xml:space="preserve">
+    <value>Start paused</value>
+  </data>
+  <data name="StartPausedDescription" xml:space="preserve">
+    <value>The program starts but leaves windows alone until you resume it.</value>
+  </data>
+  <data name="DiagnosticsHeader" xml:space="preserve">
+    <value>Diagnostics</value>
+  </data>
+  <data name="VerboseLogHeader" xml:space="preserve">
+    <value>Detailed log</value>
+  </data>
+  <data name="VerboseLogDescription" xml:space="preserve">
+    <value>Records every pass. Useful for tracking down problems; takes a few MB a day.</value>
+  </data>
+  <data name="LogAndSettingsHeader" xml:space="preserve">
+    <value>Log and settings</value>
+  </data>
+  <data name="OpenLogButton" xml:space="preserve">
+    <value>Open log folder</value>
+  </data>
+  <data name="OpenSettingsFolderButton" xml:space="preserve">
+    <value>Open settings folder</value>
+  </data>
+  <data name="TimingsHeader" xml:space="preserve">
+    <value>Reaction times</value>
+  </data>
+  <data name="TimingsDescription" xml:space="preserve">
+    <value>The defaults suit most setups.</value>
+  </data>
+  <data name="SafetyPollHeader" xml:space="preserve">
+    <value>Safety check</value>
+  </data>
+  <data name="SafetyPollDescription" xml:space="preserve">
+    <value>How often to check positions even when nothing happens.</value>
+  </data>
+  <data name="SafetyPollName" xml:space="preserve">
+    <value>Safety check in seconds</value>
+  </data>
+  <data name="DebounceHeader" xml:space="preserve">
+    <value>Wait after a window moves</value>
+  </data>
+  <data name="DebounceDescription" xml:space="preserve">
+    <value>So that dragging a window does not trigger a correction every moment.</value>
+  </data>
+  <data name="DebounceName" xml:space="preserve">
+    <value>Wait after a window moves, in milliseconds</value>
+  </data>
+  <data name="DisplayDelayHeader" xml:space="preserve">
+    <value>Wait after a screen change</value>
+  </data>
+  <data name="DisplayDelayDescription" xml:space="preserve">
+    <value>How long to give Windows to arrange the screens after plugging in, waking up or changing resolution.</value>
+  </data>
+  <data name="DisplayDelayName" xml:space="preserve">
+    <value>Wait after a screen change, in milliseconds</value>
+  </data>
+  <data name="PingPongLimitHeader" xml:space="preserve">
+    <value>Moves in a burst</value>
+  </data>
+  <data name="PingPongLimitDescription" xml:space="preserve">
+    <value>After this many moves in a short time, a window gets a break.</value>
+  </data>
+  <data name="PingPongLimitName" xml:space="preserve">
+    <value>Number of moves in a burst</value>
+  </data>
+  <data name="PingPongLimitUnit" xml:space="preserve">
+    <value>moves</value>
+  </data>
+  <data name="PingPongWindowHeader" xml:space="preserve">
+    <value>Burst duration</value>
+  </data>
+  <data name="PingPongWindowDescription" xml:space="preserve">
+    <value>The time in which the moves above are counted.</value>
+  </data>
+  <data name="PingPongWindowName" xml:space="preserve">
+    <value>Burst duration in seconds</value>
+  </data>
+  <data name="LocationWarningFormat" xml:space="preserve">
+    <value>The program runs from a folder ordinary users can change, so it cannot start with administrator rights. Install it with Install.cmd from the release package (into C:\Program Files\SensorPanelPin) and turn this option on from the installed copy.
+{0}</value>
+  </data>
+  <!-- Autostart -->
+  <data name="AutoStartNoExecutableFormat" xml:space="preserve">
+    <value>Could not determine the path to {0}. Autostart was not changed, so that no wrong entry gets registered.</value>
+  </data>
+  <data name="AutoStartUnknownMode" xml:space="preserve">
+    <value>Unknown autostart option.</value>
+  </data>
+  <data name="AutoStartRegistryOpenFailed" xml:space="preserve">
+    <value>Could not open the autostart key in the registry.</value>
+  </data>
+  <data name="AutoStartRegistryWriteFailed" xml:space="preserve">
+    <value>Could not write the autostart entry to the registry.</value>
+  </data>
+  <data name="AutoStartNeedsElevation" xml:space="preserve">
+    <value>This option needs administrator rights. Choose “Restart as administrator” from the tray icon&apos;s menu, then pick the option again.</value>
+  </data>
+  <data name="AutoStartUntrustedFormat" xml:space="preserve">
+    <value>Refusing to create a task with administrator rights, because ordinary users can replace the program:
+{0}
+
+Install it into C:\Program Files\SensorPanelPin (Install.cmd from the release package) and turn this option on from that copy.</value>
+  </data>
+  <data name="AutoStartTaskNotVisible" xml:space="preserve">
+    <value>The task was reported as created, but it does not show up in Task Scheduler.</value>
+  </data>
+  <data name="AutoStartTaskCreateFailed" xml:space="preserve">
+    <value>Could not create the task in Task Scheduler.</value>
+  </data>
+  <data name="AutoStartRemoveNeedsElevation" xml:space="preserve">
+    <value>Removing the task from Task Scheduler needs administrator rights. Choose “Restart as administrator” from the tray icon&apos;s menu, then pick the option again.</value>
+  </data>
+  <data name="AutoStartTaskRemoveFailed" xml:space="preserve">
+    <value>Could not remove the task from Task Scheduler.</value>
+  </data>
+  <!-- Protected location check -->
+  <data name="TrustFileMissingFormat" xml:space="preserve">
+    <value>The file “{0}” does not exist.</value>
+  </data>
+  <data name="TrustUnreadableFormat" xml:space="preserve">
+    <value>Could not read the permissions: {0}</value>
+  </data>
+  <data name="TrustOwnerFormat" xml:space="preserve">
+    <value>“{0}” belongs to {1}, not to the administrators.</value>
+  </data>
+  <data name="TrustWritableFormat" xml:space="preserve">
+    <value>“{0}” can be changed by {1} ({2}).</value>
+  </data>
+  <!-- Elevation -->
+  <data name="ElevationNoExecutable" xml:space="preserve">
+    <value>Could not determine the program&apos;s path.</value>
+  </data>
+  <data name="ElevationCancelled" xml:space="preserve">
+    <value>The administrator prompt was cancelled.</value>
+  </data>
+  <data name="ElevationFailed" xml:space="preserve">
+    <value>Could not restart with administrator rights.</value>
+  </data>
+  <!-- Engine status -->
+  <data name="ServiceNotStarted" xml:space="preserve">
+    <value>Not started.</value>
+  </data>
+  <data name="ServicePausedByUser" xml:space="preserve">
+    <value>Paused by the user.</value>
+  </data>
+  <data name="MeasureNoPanel" xml:space="preserve">
+    <value>No SensorPanel window found. Start AIDA64 and turn on the SensorPanel.</value>
+  </data>
+  <data name="MeasureNoMonitor" xml:space="preserve">
+    <value>Could not tell which monitor the panel is on.</value>
+  </data>
+  <data name="MeasuredFormat" xml:space="preserve">
+    <value>Measured the panel&apos;s position on “{0}”.</value>
+  </data>
+  <data name="StatusPanelNotFound" xml:space="preserve">
+    <value>SensorPanel window not found.</value>
+  </data>
+  <data name="StatusNoScreenChosen" xml:space="preserve">
+    <value>No screen is chosen for the SensorPanel.</value>
+  </data>
+  <data name="StatusTargetUnavailable" xml:space="preserve">
+    <value>The target screen is not available.</value>
+  </data>
+  <data name="StatusLayoutChanging" xml:space="preserve">
+    <value>The screen layout is changing.</value>
+  </data>
+  <data name="StatusCoordinatesUnreliable" xml:space="preserve">
+    <value>The target screen&apos;s coordinates cannot be trusted right now.</value>
+  </data>
+  <data name="StatusBackoff" xml:space="preserve">
+    <value>The panel keeps moving away by itself; corrections pause for a moment.</value>
+  </data>
+  <data name="StatusNeedsElevation" xml:space="preserve">
+    <value>AIDA64 runs as administrator. Run SensorPanelPin as administrator.</value>
+  </data>
+  <data name="StatusPinnedFormat" xml:space="preserve">
+    <value>SensorPanel pinned to “{0}”.</value>
+  </data>
+  <data name="StateStopped" xml:space="preserve">
+    <value>Stopped</value>
+  </data>
+  <data name="StatePaused" xml:space="preserve">
+    <value>Paused</value>
+  </data>
+  <data name="StateWaitingForMonitor" xml:space="preserve">
+    <value>Waiting for the monitor</value>
+  </data>
+  <data name="StateWaitingForPanel" xml:space="preserve">
+    <value>Waiting for the SensorPanel</value>
+  </data>
+  <data name="StateElevationRequired" xml:space="preserve">
+    <value>No permission</value>
+  </data>
+  <data name="StateActive" xml:space="preserve">
+    <value>Pinning</value>
+  </data>
+  <!-- Tray -->
+  <data name="TrayOpenSettings" xml:space="preserve">
+    <value>Open settings</value>
+  </data>
+  <data name="TrayFixNow" xml:space="preserve">
+    <value>Fix the position now</value>
+  </data>
+  <data name="TrayPause" xml:space="preserve">
+    <value>Pause pinning</value>
+  </data>
+  <data name="TrayResume" xml:space="preserve">
+    <value>Resume pinning</value>
+  </data>
+  <data name="TrayRestartElevated" xml:space="preserve">
+    <value>Restart as administrator</value>
+  </data>
+  <data name="TrayExit" xml:space="preserve">
+    <value>Quit SensorPanelPin</value>
+  </data>
+  <data name="TrayLogDisabledTitle" xml:space="preserve">
+    <value>Logging is off</value>
+  </data>
+  <data name="TrayLogDisabledFormat" xml:space="preserve">
+    <value>Logging was turned off for safety: {0}</value>
+  </data>
+  <data name="TrayElevationTitle" xml:space="preserve">
+    <value>The panel cannot be moved</value>
+  </data>
+  <data name="TrayElevationText" xml:space="preserve">
+    <value>AIDA64 runs as administrator, so Windows does not allow moving its window. Choose “Restart as administrator” from the tray icon&apos;s menu.</value>
+  </data>
+  <!-- AIDA64 windows dialog -->
+  <data name="DiagnosticsWindowTitle" xml:space="preserve">
+    <value>AIDA64 windows</value>
+  </data>
+  <data name="DiagnosticsIntro" xml:space="preserve">
+    <value>The window marked “MATCHES RULE” is treated as the SensorPanel. If none is marked, adjust the “How to recognise the panel window” fields.</value>
+  </data>
+  <data name="CopyButton" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="CloseButton" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <!-- Startup messages -->
+  <data name="AlreadyRunning" xml:space="preserve">
+    <value>SensorPanelPin is already running. Its icon is in the notification area.</value>
+  </data>
+  <data name="LegacyRunning" xml:space="preserve">
+    <value>An older version of this program (SensorPanelGlue) is still running. Two copies would fight over the same windows.
+
+Quit it from its tray icon&apos;s menu, then start SensorPanelPin again.</value>
+  </data>
+  <data name="FatalErrorFormat" xml:space="preserve">
+    <value>SensorPanelPin ran into an error and will close.
+
+Details are in the log:
+{0}</value>
+  </data>
+</root>

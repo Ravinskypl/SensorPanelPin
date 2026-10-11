@@ -1,4 +1,5 @@
 using SensorPanelPin.Diagnostics;
+using SensorPanelPin.Localization;
 
 namespace SensorPanelPin.Windows;
 
@@ -102,20 +103,20 @@ public sealed class PingPongGuard
         {
             entry.CooldownUntil = now + Cooldown;
             _log.Info(
-                $"Okno wraca na zakazany ekran mimo {Limit} przeniesień w ciągu "
-                + $"{Window.TotalSeconds:0} s — przerwa {Cooldown.TotalSeconds:0} s "
-                + $"(próba {entry.Rounds} z {MaxRounds}): {info.Describe()}");
+                $"A window keeps returning to the forbidden screen despite {Limit} moves in "
+                + $"{Window.TotalSeconds:0} s; break of {Cooldown.TotalSeconds:0} s "
+                + $"(round {entry.Rounds} of {MaxRounds}): {info.Describe()}");
             return false;
         }
 
         entry.Abandoned = true;
-        var description = $"{info.ProcessName} — {WindowInfo.Shorten(info.Title)} (klasa {info.ClassName})";
+        var description = Strings.ProblemDescriptionFormat(info.ProcessName, WindowInfo.Shorten(info.Title), info.ClassName);
         _problems[info.Handle] = new ProblemWindow(description, DateTime.Now);
 
         // The abandoning burst is the MaxRounds-th; the pauses happened between bursts.
         _log.Warn(
-            $"Okno wraca na zakazany ekran po {MaxRounds - 1} przerwach — przestaję je przenosić "
-            + "do końca sesji: " + info.Describe());
+            $"A window keeps returning to the forbidden screen after {MaxRounds - 1} breaks; it is no "
+            + "longer moved this session: " + info.Describe());
         return false;
     }
 
@@ -136,6 +137,6 @@ public sealed class PingPongGuard
     {
         _entries.Clear();
         _problems.Clear();
-        _log.Info("Wyczyszczono listę problematycznych okien.");
+        _log.Info("Cleared the list of windows that kept coming back.");
     }
 }

@@ -94,7 +94,7 @@ public sealed class LoggerTests : IDisposable
 
         var text = _temp.ReadAll();
         Assert.DoesNotContain("lost one", text);
-        Assert.Contains("Utracono 2 wpisów", text);
+        Assert.Contains("Lost 2 log lines", text);
         Assert.Contains("after", text);
         Assert.Equal(2, Log.DroppedLines);
         Assert.Null(Log.DisabledReason);
