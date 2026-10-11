@@ -78,6 +78,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         OpenLogsCommand = new RelayCommand(() => OpenFolder(_log.LogDirectory));
         OpenConfigCommand = new RelayCommand(() => OpenFolder(_store.AppDataDirectory));
         RestartElevatedCommand = new RelayCommand(() => RestartElevatedRequested?.Invoke(this, EventArgs.Empty));
+        InstallCommand = new RelayCommand(() => InstallRequested?.Invoke(this, EventArgs.Empty));
+        UninstallCommand = new RelayCommand(() => UninstallRequested?.Invoke(this, EventArgs.Empty));
         ResumeCommand = new RelayCommand(() =>
         {
             _service.SetPaused(false);
@@ -85,6 +87,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         });
 
         IsElevated = Elevation.IsElevated();
+        IsInstalledCopy = Installer.IsInstalledCopy;
         var exe = Environment.ProcessPath ?? string.Empty;
         if (!ExecutableTrust.IsProtected(exe, out var reason))
         {
@@ -104,6 +107,10 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
 
     public event EventHandler? RestartElevatedRequested;
 
+    public event EventHandler? InstallRequested;
+
+    public event EventHandler? UninstallRequested;
+
     // ------------------------------------------------------------------ commands
 
     public ICommand IdentifyCommand { get; }
@@ -121,6 +128,10 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     public ICommand OpenConfigCommand { get; }
 
     public ICommand RestartElevatedCommand { get; }
+
+    public ICommand InstallCommand { get; }
+
+    public ICommand UninstallCommand { get; }
 
     public ICommand ResumeCommand { get; }
 
@@ -233,6 +244,9 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
 
     public bool IsElevated { get; }
 
+    /// <summary>Running from Program Files: offer uninstalling. Anywhere else: offer installing.</summary>
+    public bool IsInstalledCopy { get; }
+
     public string? LocationWarning { get; }
 
     public bool AutoStartDisabled { get => _autoStartMode == AutoStartMode.Disabled; set => SelectAutoStart(value, AutoStartMode.Disabled); }
@@ -317,6 +331,10 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
                 (Strings.StatusInPlaceFormat(panelScreen?.FriendlyName), InfoBarSeverity.Success, null, null),
             ServiceState.Active =>
                 (Strings.StatusReturning, InfoBarSeverity.Informational, null, null),
+            // A downloaded copy is better installed than elevated once: installed, it starts with
+            // administrator rights at every logon.
+            ServiceState.ElevationRequired when !IsInstalledCopy =>
+                (Strings.StatusElevationNotInstalled, InfoBarSeverity.Warning, Strings.InstallButton, InstallCommand),
             ServiceState.ElevationRequired =>
                 (Strings.StatusElevation, InfoBarSeverity.Warning, Strings.RunAsAdministratorButton, RestartElevatedCommand),
             ServiceState.WaitingForMonitor when string.IsNullOrEmpty(_config.PanelMonitorId) =>

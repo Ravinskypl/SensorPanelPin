@@ -25,7 +25,9 @@
         <TextBlock Text="{x:Static l:Strings.StartupTitle}" Style="{DynamicResource TitleTextBlockStyle}" Margin="0,0,0,20" />
 
         <ui:InfoBar Severity="Warning" Message="{Binding LocationWarning}"
-                    Visibility="{Binding LocationWarning, Converter={StaticResource EmptyToCollapsed}}" />
+                    Visibility="{Binding LocationWarning, Converter={StaticResource EmptyToCollapsed}}">
+            <Button Content="{x:Static l:Strings.InstallButton}" MinWidth="110" Command="{Binding InstallCommand}" />
+        </ui:InfoBar>
         <ui:InfoBar Severity="{Binding AutoStartMessageSeverity}" Message="{Binding AutoStartMessage}"
                     Visibility="{Binding AutoStartMessage, Converter={StaticResource EmptyToCollapsed}}" />
 
@@ -60,6 +62,13 @@
                          Description="{x:Static l:Strings.StartPausedDescription}">
             <ToggleButton Style="{StaticResource ToggleSwitchStyle}" IsChecked="{Binding StartPaused}"
                           AutomationProperties.Name="{x:Static l:Strings.StartPausedHeader}" />
+        </ui:SettingsCard>
+
+        <!-- Only the installed copy can be uninstalled; a downloaded one offers Install above instead. -->
+        <ui:SettingsCard Icon="&#xE74D;" Header="{x:Static l:Strings.UninstallHeader}"
+                         Description="{x:Static l:Strings.UninstallDescription}"
+                         Visibility="{Binding IsInstalledCopy, Converter={StaticResource BoolToVisible}}">
+            <Button Content="{x:Static l:Strings.UninstallButton}" MinWidth="110" Command="{Binding UninstallCommand}" />
         </ui:SettingsCard>
 
         <TextBlock Text="{x:Static l:Strings.DiagnosticsHeader}" Style="{StaticResource SectionHeaderStyle}" />

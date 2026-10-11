@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
-    Builds the release package: tests, a self-contained publish, and a ZIP with install scripts and
-    SHA-256 checksums in .\artifacts.
+    Builds the release package: tests, a self-contained publish, and a ZIP with SHA-256 checksums in
+    .\artifacts.
 
 .DESCRIPTION
     The same script runs locally and in the release workflow, so a downloaded ZIP can be rebuilt and
@@ -42,9 +42,8 @@ New-Item -ItemType Directory -Path $staging | Out-Null
     -p:PublishSingleFile=true -p:SelfContained=true -p:EnableCompressionInSingleFile=true -p:DebugType=none
 if ($LASTEXITCODE -ne 0) { throw "Publish failed." }
 
-foreach ($file in 'Install.cmd', 'Install.ps1', 'Uninstall.cmd', 'Uninstall.ps1') {
-    Copy-Item (Join-Path $PSScriptRoot $file) $staging
-}
+# No install scripts: the program installs and uninstalls itself (SensorPanelPin.exe --install).
+# Release 2.0.0 shipped Install.cmd, and antivirus behaviour engines stopped it as malicious.
 Copy-Item (Join-Path $root 'LICENSE') (Join-Path $staging 'LICENSE.txt')
 Copy-Item (Join-Path $PSScriptRoot 'README-release.txt') (Join-Path $staging 'README.txt')
 

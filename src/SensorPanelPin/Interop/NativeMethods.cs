@@ -214,6 +214,21 @@ internal static class NativeMethods
     [DllImport("wtsapi32.dll", SetLastError = true)]
     public static extern bool WTSUnRegisterSessionNotification(IntPtr hWnd);
 
+    public const int WTSUserName = 5;
+    public const int WTSDomainName = 7;
+
+    [DllImport("wtsapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern bool WTSQuerySessionInformation(IntPtr hServer, int sessionId, int wtsInfoClass, out IntPtr ppBuffer, out int pBytesReturned);
+
+    [DllImport("wtsapi32.dll")]
+    public static extern void WTSFreeMemory(IntPtr pMemory);
+
+    // ---- kernel32 ------------------------------------------------------
+    public const int MOVEFILE_DELAY_UNTIL_REBOOT = 0x4;
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern bool MoveFileEx(string lpExistingFileName, string? lpNewFileName, int dwFlags);
+
     // ---- shcore / shell ------------------------------------------------
     [DllImport("shcore.dll")]
     public static extern int GetDpiForMonitor(IntPtr hmonitor, uint dpiType, out uint dpiX, out uint dpiY);
