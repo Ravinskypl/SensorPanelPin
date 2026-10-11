@@ -35,7 +35,8 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>false</SelfContained>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- No InvariantGlobalization: WPF resolves a specific culture for every binding in a template,
+         and with invariant mode every templated control throws XamlParseException at load. -->
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <Version>2.0.0</Version>
     <Product>SensorPanelGlue</Product>

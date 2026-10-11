@@ -285,10 +285,11 @@ skrócone (60 znaków) tytuły okien, które program przenosi lub — przy szcze
 dotnet test tests/SensorPanelGlue.Tests/SensorPanelGlue.Tests.csproj
 ```
 
-222 testy xUnit, bez potrzeby pulpitu: spójność układu monitorów (w tym incydent z monitorem
+223 testy xUnit, bez potrzeby pulpitu: spójność układu monitorów (w tym incydent z monitorem
 zgłoszonym w (0,0)), anty-ping-pong z przerwami (incydent ze Steamem), arytmetyka terminów zegara,
 odmowa zapisu przez junction i hardlink, kontrola ACL (plik w `%TEMP%` odrzucony, `dotnet.exe` w
-`Program Files` przyjęty), wzorce, konfiguracja, log.
+`Program Files` przyjęty), wzorce, konfiguracja, log, przełączniki środowiska uruchomieniowego (WPF nie
+zniesie trybu `InvariantGlobalization`: każdy szablon kontrolki rzuca wtedy `XamlParseException`).
 
 ### Pomiary na żywym sprzęcie
 
@@ -311,9 +312,10 @@ harmonogram i interfejs, a tych pomiarów jeszcze nie powtórzono.
 | Zużycie CPU w spoczynku (90 s) | **0,12% jednego rdzenia** |
 | Pamięć w spoczynku | 69 MB working set / 28 MB prywatnej |
 
-W wersji 2 sprawdzone: build bez ostrzeżeń, 222 testy, interfejs na zrzutach w trybie jasnym i
+W wersji 2 sprawdzone: build bez ostrzeżeń, 223 testy, interfejs na zrzutach w trybie jasnym i
 ciemnym na żywych danych z monitorów, nowy zegar w działaniu (puls co 5 minut z wersji z poprawkami
-bezpieczeństwa).
+bezpieczeństwa), zainstalowana kopia w `Program Files`: start bez błędów interfejsu, Notatnik
+przesunięty z ekranu panelu na główny w **185 ms**.
 
 ---
 
