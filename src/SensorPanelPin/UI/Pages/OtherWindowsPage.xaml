@@ -1,0 +1,99 @@
+<UserControl x:Class="SensorPanelPin.UI.Pages.OtherWindowsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:SensorPanelPin.UI">
+    <StackPanel>
+        <TextBlock Text="Inne okna" Style="{DynamicResource TitleTextBlockStyle}" Margin="0,0,0,20" />
+
+        <ui:SettingsCard Icon="&#xE8A7;" Header="Przenoś okna z ekranu SensorPanela"
+                         Description="Windows nie pozwala zabronić programom otwierania się na wybranym ekranie. Okno, które się tam pojawi, trafia na ekran dla pozostałych okien.">
+            <ToggleButton Style="{StaticResource ToggleSwitchStyle}" IsChecked="{Binding RelocateForeignWindows}"
+                          AutomationProperties.Name="Przenoś okna z ekranu SensorPanela" />
+        </ui:SettingsCard>
+
+        <!-- ============================================================== exceptions -->
+        <TextBlock Text="Wyjątki" Style="{StaticResource SectionHeaderStyle}" />
+        <TextBlock Text="Te okna zostają tam, gdzie się otworzą." Margin="1,-4,0,10"
+                   Style="{DynamicResource CaptionTextBlockStyle}"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+        <Border Style="{StaticResource ListCardStyle}">
+            <StackPanel>
+                <TextBlock Text="Brak wyjątków." Style="{StaticResource EmptyStateStyle}"
+                           Visibility="{Binding Exceptions.Count, Converter={StaticResource EmptyToVisible}, FallbackValue=Collapsed}" />
+                <ItemsControl ItemsSource="{Binding Exceptions}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="16,10,8,10">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Title}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                        <TextBlock Text="{Binding Detail}" Style="{DynamicResource CaptionTextBlockStyle}"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="&#xE74D;" Style="{StaticResource SubtleIconButtonStyle}"
+                                            Command="{Binding Remove}" ToolTip="Usuń wyjątek"
+                                            AutomationProperties.Name="Usuń wyjątek" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Adding sits in the same card as the list it extends. -->
+                <Grid Margin="16,12,16,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Program" Margin="0,0,0,4" Style="{DynamicResource CaptionTextBlockStyle}"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <TextBox Text="{Binding NewExceptionProcess, UpdateSourceTrigger=PropertyChanged}"
+                                 AutomationProperties.Name="Program wyjątku" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Fragment tytułu (opcjonalnie)" Margin="0,0,0,4" Style="{DynamicResource CaptionTextBlockStyle}"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <TextBox Text="{Binding NewExceptionTitle, UpdateSourceTrigger=PropertyChanged}"
+                                 AutomationProperties.Name="Fragment tytułu wyjątku" />
+                    </StackPanel>
+                    <Button Grid.Column="4" VerticalAlignment="Bottom" Content="Dodaj wyjątek"
+                            Command="{Binding AddExceptionCommand}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- ============================================================== abandoned windows -->
+        <TextBlock Text="Okna, które wracały" Style="{StaticResource SectionHeaderStyle}" />
+        <TextBlock Margin="1,-4,0,10" TextWrapping="Wrap"
+                   Text="Okno, które po trzech seriach przeniesień wciąż wraca na ekran panelu, jest zostawiane w spokoju do końca sesji."
+                   Style="{DynamicResource CaptionTextBlockStyle}"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+        <Border Style="{StaticResource ListCardStyle}">
+            <StackPanel>
+                <TextBlock Text="Żadne okno nie wracało na ekran panelu." Style="{StaticResource EmptyStateStyle}"
+                           Visibility="{Binding Problems.Count, Converter={StaticResource EmptyToVisible}, FallbackValue=Collapsed}" />
+                <ItemsControl ItemsSource="{Binding Problems}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="16,10">
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Button Content="Pozwól je znowu przenosić" HorizontalAlignment="Left" Margin="16,12,16,14"
+                        Command="{Binding ForgiveCommand}" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

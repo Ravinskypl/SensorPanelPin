@@ -1,21 +1,25 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    Installs SensorPanelGlue into Program Files and points the logon task at that copy.
+    Installs SensorPanelPin into Program Files and points the logon task at that copy.
 
 .DESCRIPTION
-    The logon task runs SensorPanelGlue with administrator rights and no UAC prompt. That is only
+    The logon task runs SensorPanelPin with administrator rights and no UAC prompt. That is only
     safe if nobody but administrators can change the files it starts - otherwise any program running
     as the user could replace the executable, or drop a DLL beside it, and be handed administrator
     rights at the next logon. A build folder on a data drive fails that test: inherited permissions
     there give every authenticated user Modify.
 
-    This script copies a published build into %ProgramFiles%\SensorPanelGlue, makes Administrators
+    This script copies a published build into %ProgramFiles%\SensorPanelPin, makes Administrators
     the owner, resets the permissions to the protected ones inherited from Program Files, and - if
     the task already exists - repoints it at the installed copy and starts it.
 
+    It also finishes the rename from SensorPanelGlue: stops the old program, carries its logon task
+    over under the new name and removes its folder from Program Files. Settings move over on their
+    own at the first start of SensorPanelPin.
+
     Build first:
-        dotnet publish src/SensorPanelGlue/SensorPanelGlue.csproj -c Release -p:PublishSingleFile=true `
+        dotnet publish src/SensorPanelPin/SensorPanelPin.csproj -c Release -p:PublishSingleFile=true `
             -p:SelfContained=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
 
     Deliberately WITHOUT IncludeNativeLibrariesForSelfExtract: with it, the native libraries are
@@ -26,16 +30,18 @@
     Folder with the published build. Defaults to ..\publish next to this script.
 
 .PARAMETER Destination
-    Installation folder. Defaults to %ProgramFiles%\SensorPanelGlue.
+    Installation folder. Defaults to %ProgramFiles%\SensorPanelPin.
 #>
 param(
     [string]$Source = (Join-Path $PSScriptRoot '..\publish'),
-    [string]$Destination = (Join-Path $env:ProgramFiles 'SensorPanelGlue')
+    [string]$Destination = (Join-Path $env:ProgramFiles 'SensorPanelPin')
 )
 
 $ErrorActionPreference = 'Stop'
-$taskName = 'SensorPanelGlue'
-$exeName = 'SensorPanelGlue.exe'
+$taskName = 'SensorPanelPin'
+$exeName = 'SensorPanelPin.exe'
+$legacyName = 'SensorPanelGlue'
+$legacyDestination = Join-Path $env:ProgramFiles $legacyName
 
 $Source = (Resolve-Path $Source).Path
 $sourceExe = Join-Path $Source $exeName
@@ -44,11 +50,13 @@ if (-not (Test-Path $sourceExe)) {
 }
 
 # 1. Stop whatever is running, task-started or not: its files are about to be replaced.
+#    The old name too: two copies would fight over the same windows.
 $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-if ($task) {
-    Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+$legacyTask = Get-ScheduledTask -TaskName $legacyName -ErrorAction SilentlyContinue
+foreach ($name in @($taskName, $legacyName)) {
+    Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+    Get-Process -Name $name -ErrorAction SilentlyContinue | Stop-Process -Force
 }
-Get-Process -Name 'SensorPanelGlue' -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 800
 
 # 2. Replace the installation completely, so no file from an older build lingers beside the new one.
@@ -64,6 +72,26 @@ if ($LASTEXITCODE -ne 0) { throw "icacls /reset zakonczyl sie kodem $LASTEXITCOD
 
 $exe = Join-Path $Destination $exeName
 Write-Host "Zainstalowano: $exe"
+
+# 3a. The task of the old name becomes the task of the new one, with its trigger and account intact.
+#     The definition goes from Export to Register in memory, never through a file. New first, old
+#     second: a failure must not leave the user with no autostart at all.
+if (-not $task -and $legacyTask) {
+    $xml = (Export-ScheduledTask -TaskName $legacyName).Replace($legacyName, 'SensorPanelPin')
+    $task = Register-ScheduledTask -TaskName $taskName -Xml $xml
+    Write-Host "Zadanie '$legacyName' przeniesione pod nazwe '$taskName'."
+}
+if ($task -and $legacyTask) {
+    Unregister-ScheduledTask -TaskName $legacyName -Confirm:$false
+    Write-Host "Usunieto stare zadanie '$legacyName'."
+}
+
+# 3b. The old installation. Only a folder that really holds the old program is removed.
+if ((Test-Path (Join-Path $legacyDestination "$legacyName.exe")) -and
+    ((Resolve-Path $legacyDestination).Path -ne (Resolve-Path $Destination).Path)) {
+    Remove-Item -LiteralPath $legacyDestination -Recurse -Force
+    Write-Host "Usunieto stara instalacje: $legacyDestination"
+}
 
 # 4. Point the logon task at the installed copy. Set-ScheduledTask goes through the Task Scheduler
 #    API directly - no definition file passes through a user-writable folder on the way.

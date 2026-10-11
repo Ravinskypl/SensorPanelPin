@@ -1,0 +1,323 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ui="clr-namespace:SensorPanelPin.UI">
+
+    <!--
+        Everything here binds to the Fluent theme's own resources with DynamicResource, so a change of
+        the Windows light/dark setting or accent colour repaints the app without a restart. Nothing
+        defines a colour of its own: the app should look like part of Windows, not like a skin on it.
+    -->
+
+    <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+    <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas</FontFamily>
+
+    <ui:EmptyToCollapsedConverter x:Key="EmptyToCollapsed" />
+    <ui:EmptyCollectionToVisibleConverter x:Key="EmptyToVisible" />
+    <BooleanToVisibilityConverter x:Key="BoolToVisible" />
+
+    <!-- A group of rows sharing one card, separated by hairlines: lists of exceptions and windows. -->
+    <Style x:Key="ListCardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+    </Style>
+
+    <!-- ===================================================== toggle switch -->
+    <!-- WPF's Fluent theme ships the ToggleSwitch brushes but not the control; this is the
+         Windows 11 switch on a ToggleButton: 40 x 20 pill, state text to its left. -->
+    <Style x:Key="ToggleSwitchStyle" TargetType="ToggleButton">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{DynamicResource DefaultControlFocusVisualStyle}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid Background="Transparent">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="StateText" Grid.Column="0" Margin="0,0,12,0" VerticalAlignment="Center"
+                                   Text="Wyłączone" Foreground="{TemplateBinding Foreground}" />
+                        <Border x:Name="Track" Grid.Column="1" Width="40" Height="20" CornerRadius="10"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource ToggleSwitchFillOff}"
+                                BorderBrush="{DynamicResource ToggleSwitchStrokeOff}" BorderThickness="1">
+                            <Ellipse x:Name="Knob" Width="12" Height="12" Margin="3,0,0,0"
+                                     HorizontalAlignment="Left" VerticalAlignment="Center"
+                                     Fill="{DynamicResource ToggleSwitchKnobFillOff}" />
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="StateText" Property="Text" Value="Włączone" />
+                            <Setter TargetName="Track" Property="Background" Value="{DynamicResource ToggleSwitchFillOn}" />
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource ToggleSwitchStrokeOn}" />
+                            <Setter TargetName="Knob" Property="Fill" Value="{DynamicResource ToggleSwitchKnobFillOn}" />
+                            <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right" />
+                            <Setter TargetName="Knob" Property="Margin" Value="0,0,3,0" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsChecked" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Track" Property="Background" Value="{DynamicResource ToggleSwitchFillOffPointerOver}" />
+                            <Setter TargetName="Knob" Property="Fill" Value="{DynamicResource ToggleSwitchKnobFillOffPointerOver}" />
+                            <Setter TargetName="Knob" Property="Width" Value="14" />
+                            <Setter TargetName="Knob" Property="Height" Value="14" />
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsChecked" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Track" Property="Background" Value="{DynamicResource ToggleSwitchFillOnPointerOver}" />
+                            <Setter TargetName="Knob" Property="Width" Value="14" />
+                            <Setter TargetName="Knob" Property="Height" Value="14" />
+                        </MultiTrigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="StateText" Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+                            <Setter TargetName="Track" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ===================================================== settings card -->
+    <!-- The Windows 11 Settings row: optional icon, title and description on the left, the control
+         on the right. Cards stack with a 4 px gap; sections are separated by a heading, not a box. -->
+    <Style TargetType="ui:SettingsCard">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ui:SettingsCard">
+                    <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1" CornerRadius="4" MinHeight="68" Padding="16,12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="Icon" Grid.Column="0" Margin="4,0,20,0" VerticalAlignment="Center"
+                                       FontFamily="{StaticResource IconFont}" FontSize="20"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                       Text="{TemplateBinding Icon}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,24,0">
+                                <TextBlock Text="{TemplateBinding Header}" TextWrapping="Wrap"
+                                           Style="{DynamicResource BodyTextBlockStyle}"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <TextBlock x:Name="Description" Text="{TemplateBinding Description}" TextWrapping="Wrap"
+                                           Style="{DynamicResource CaptionTextBlockStyle}" Margin="0,2,0,0"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                            <ContentPresenter Grid.Column="2" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Icon" Value="{x:Null}">
+                            <Setter TargetName="Icon" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="Icon" Value="">
+                            <Setter TargetName="Icon" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="Description" Value="{x:Null}">
+                            <Setter TargetName="Description" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="Description" Value="">
+                            <Setter TargetName="Description" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ===================================================== settings expander -->
+    <!-- WinUI's SettingsExpander: a card that unfolds into indented rows. Used for the settings that
+         almost nobody needs to touch, so they do not crowd the page by default. -->
+    <Style x:Key="SettingsExpanderStyle" TargetType="Expander">
+        <Setter Property="Margin" Value="0,0,0,4" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Expander">
+                    <StackPanel>
+                        <!-- Fluent's implicit ToggleButton style left-aligns; the header must span the card. -->
+                        <ToggleButton x:Name="Toggle" Cursor="Hand"
+                                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                      FocusVisualStyle="{DynamicResource DefaultControlFocusVisualStyle}"
+                                      IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                            <Border x:Name="HeaderBorder" MinHeight="68" Padding="16,12" CornerRadius="4" BorderThickness="1"
+                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ContentPresenter ContentSource="Header" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="Chevron" Grid.Column="1" Margin="16,0,4,0" VerticalAlignment="Center"
+                                               FontFamily="{StaticResource IconFont}" FontSize="12" Text="&#xE70D;"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </Grid>
+                            </Border>
+                        </ToggleButton>
+                        <Border x:Name="Body" Visibility="Collapsed" BorderThickness="1,0,1,1" CornerRadius="0,0,4,4"
+                                Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                            <ContentPresenter />
+                        </Border>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsExpanded" Value="True">
+                            <Setter TargetName="Body" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="HeaderBorder" Property="CornerRadius" Value="4,4,0,0" />
+                            <Setter TargetName="Chevron" Property="Text" Value="&#xE70E;" />
+                        </Trigger>
+                        <Trigger SourceName="Toggle" Property="IsMouseOver" Value="True">
+                            <Setter TargetName="HeaderBorder" Property="Background" Value="{DynamicResource CardBackgroundFillColorSecondaryBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A row inside an expander: text indented to line up with the header's text, control on the right. -->
+    <Style x:Key="ExpanderRowStyle" TargetType="Border">
+        <Setter Property="BorderBrush" Value="{DynamicResource DividerStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="0,1,0,0" />
+        <Setter Property="Padding" Value="60,12,16,12" />
+        <Setter Property="MinHeight" Value="56" />
+    </Style>
+
+    <!-- ===================================================== info bar -->
+    <!-- WinUI's InfoBar, rebuilt from the Fluent severity brushes: tinted surface, coloured glyph. -->
+    <Style TargetType="ui:InfoBar">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ui:InfoBar">
+                    <Border x:Name="Surface" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1" CornerRadius="4" Padding="16,12"
+                            Background="{DynamicResource SystemFillColorAttentionBackgroundBrush}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="Glyph" Grid.Column="0" Margin="0,1,14,0" VerticalAlignment="Top"
+                                       FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xF167;"
+                                       Foreground="{DynamicResource SystemFillColorAttentionBrush}" />
+                            <TextBlock Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap"
+                                       Text="{TemplateBinding Message}"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <ContentPresenter Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Severity" Value="Success">
+                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource SystemFillColorSuccessBackgroundBrush}" />
+                            <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                            <Setter TargetName="Glyph" Property="Text" Value="&#xEC61;" />
+                        </Trigger>
+                        <Trigger Property="Severity" Value="Warning">
+                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}" />
+                            <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                            <Setter TargetName="Glyph" Property="Text" Value="&#xE7BA;" />
+                        </Trigger>
+                        <Trigger Property="Severity" Value="Error">
+                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource SystemFillColorCriticalBackgroundBrush}" />
+                            <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                            <Setter TargetName="Glyph" Property="Text" Value="&#xEB90;" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ===================================================== navigation -->
+    <!-- NavigationView's left pane: rounded hover/selection fill and the short accent pill that
+         marks the current page. -->
+    <Style x:Key="NavItemStyle" TargetType="ListBoxItem">
+        <Setter Property="FocusVisualStyle" Value="{DynamicResource DefaultControlFocusVisualStyle}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Margin" Value="0,2" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="Bg" Height="36" CornerRadius="4" Background="Transparent">
+                        <Grid>
+                            <Border x:Name="Pill" Width="3" Height="16" CornerRadius="1.5" HorizontalAlignment="Left"
+                                    Background="{DynamicResource AccentFillColorDefaultBrush}" Visibility="Collapsed" />
+                            <ContentPresenter Margin="14,0,12,0" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                            <Setter TargetName="Pill" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ===================================================== text -->
+    <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="1,28,0,8" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="EmptyStateStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="17,12,17,14" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <!-- Borderless icon button for list rows (remove an exception). -->
+    <Style x:Key="SubtleIconButtonStyle" TargetType="Button">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{DynamicResource DefaultControlFocusVisualStyle}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" Width="32" Height="32" CornerRadius="4" Background="Transparent">
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   FontFamily="{StaticResource IconFont}" FontSize="14"
+                                   Foreground="{TemplateBinding Foreground}" Text="{TemplateBinding Content}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

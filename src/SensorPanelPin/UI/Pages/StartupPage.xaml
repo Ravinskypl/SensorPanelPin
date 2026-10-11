@@ -1,0 +1,162 @@
+<UserControl x:Class="SensorPanelPin.UI.Pages.StartupPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:SensorPanelPin.UI">
+    <UserControl.Resources>
+        <Style x:Key="ChoiceTitle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+        <Style x:Key="ChoiceDetail" TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        </Style>
+        <Style x:Key="UnitText" TargetType="TextBlock">
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="MinWidth" Value="88" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <TextBlock Text="Uruchamianie" Style="{DynamicResource TitleTextBlockStyle}" Margin="0,0,0,20" />
+
+        <ui:InfoBar Severity="Warning" Message="{Binding LocationWarning}"
+                    Visibility="{Binding LocationWarning, Converter={StaticResource EmptyToCollapsed}}" />
+        <ui:InfoBar Severity="{Binding AutoStartMessageSeverity}" Message="{Binding AutoStartMessage}"
+                    Visibility="{Binding AutoStartMessage, Converter={StaticResource EmptyToCollapsed}}" />
+
+        <TextBlock Text="Razem z Windows" Style="{StaticResource SectionHeaderStyle}" Margin="1,8,0,8" />
+
+        <!-- One question, three answers: a radio group in one card, each answer saying what it costs. -->
+        <Border Style="{StaticResource ListCardStyle}" Padding="16,14">
+            <StackPanel>
+                <RadioButton GroupName="AutoStart" IsChecked="{Binding AutoStartDisabled}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Nie uruchamiaj" Style="{StaticResource ChoiceTitle}" />
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton GroupName="AutoStart" IsChecked="{Binding AutoStartRegistry}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Uruchamiaj bez uprawnień administratora" Style="{StaticResource ChoiceTitle}" />
+                        <TextBlock Style="{StaticResource ChoiceDetail}"
+                                   Text="Panel nie będzie pilnowany, jeśli AIDA64 działa jako administrator — Windows nie pozwoli go przesunąć." />
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton GroupName="AutoStart" IsChecked="{Binding AutoStartElevated}">
+                    <StackPanel>
+                        <TextBlock Text="Uruchamiaj z uprawnieniami administratora" Style="{StaticResource ChoiceTitle}" />
+                        <TextBlock Style="{StaticResource ChoiceDetail}"
+                                   Text="Przez Harmonogram zadań, bez pytania UAC przy każdym logowaniu. Wymaga programu zainstalowanego w Program Files." />
+                    </StackPanel>
+                </RadioButton>
+            </StackPanel>
+        </Border>
+
+        <ui:SettingsCard Icon="&#xE769;" Header="Startuj wstrzymany"
+                         Description="Program uruchamia się, ale nie rusza okien, dopóki go nie wznowisz.">
+            <ToggleButton Style="{StaticResource ToggleSwitchStyle}" IsChecked="{Binding StartPaused}"
+                          AutomationProperties.Name="Startuj wstrzymany" />
+        </ui:SettingsCard>
+
+        <TextBlock Text="Diagnostyka" Style="{StaticResource SectionHeaderStyle}" />
+
+        <ui:SettingsCard Icon="&#xE9F9;" Header="Szczegółowy log"
+                         Description="Zapisuje każdy przebieg pilnowania. Przydaje się do szukania błędów; zajmuje kilka MB dziennie.">
+            <ToggleButton Style="{StaticResource ToggleSwitchStyle}" IsChecked="{Binding VerboseLogging}"
+                          AutomationProperties.Name="Szczegółowy log" />
+        </ui:SettingsCard>
+
+        <ui:SettingsCard Icon="&#xE8B7;" Header="Log i ustawienia" Description="{Binding LogFolder}">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="Otwórz log" MinWidth="110" Command="{Binding OpenLogsCommand}" />
+                <Button Content="Otwórz ustawienia" MinWidth="110" Margin="8,0,0,0" Command="{Binding OpenConfigCommand}" />
+            </StackPanel>
+        </ui:SettingsCard>
+
+        <TextBlock Text="Zaawansowane" Style="{StaticResource SectionHeaderStyle}" />
+
+        <Expander Style="{StaticResource SettingsExpanderStyle}" AutomationProperties.Name="Czasy reakcji">
+            <Expander.Header>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Margin="4,0,20,0" VerticalAlignment="Center" FontFamily="{StaticResource IconFont}" FontSize="20"
+                               Text="&#xE916;" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Czasy reakcji" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="Wartości domyślne pasują do większości zestawów." Margin="0,2,0,0"
+                                   Style="{DynamicResource CaptionTextBlockStyle}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </StackPanel>
+            </Expander.Header>
+            <StackPanel>
+                <Border Style="{StaticResource ExpanderRowStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                            <TextBlock Text="Sprawdzanie kontrolne" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="Jak często sprawdzać położenie, nawet gdy nic się nie dzieje." Style="{StaticResource ChoiceDetail}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBox Width="80" Text="{Binding SafetyPollSeconds, UpdateSourceTrigger=LostFocus}" AutomationProperties.Name="Sprawdzanie kontrolne w sekundach" />
+                            <TextBlock Text="s" Style="{StaticResource UnitText}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <Border Style="{StaticResource ExpanderRowStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                            <TextBlock Text="Odczekanie po ruchu okna" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="Żeby przeciąganie okna nie wywoływało poprawek co chwilę." Style="{StaticResource ChoiceDetail}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBox Width="80" Text="{Binding EventDebounceMs, UpdateSourceTrigger=LostFocus}" AutomationProperties.Name="Odczekanie po ruchu okna w milisekundach" />
+                            <TextBlock Text="ms" Style="{StaticResource UnitText}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <Border Style="{StaticResource ExpanderRowStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                            <TextBlock Text="Odczekanie po zmianie ekranów" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="Ile dać Windows na ułożenie ekranów po podłączeniu, wybudzeniu lub zmianie rozdzielczości." Style="{StaticResource ChoiceDetail}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBox Width="80" Text="{Binding DisplayChangeDelayMs, UpdateSourceTrigger=LostFocus}" AutomationProperties.Name="Odczekanie po zmianie ekranów w milisekundach" />
+                            <TextBlock Text="ms" Style="{StaticResource UnitText}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <Border Style="{StaticResource ExpanderRowStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                            <TextBlock Text="Seria przeniesień jednego okna" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="Po tylu przeniesieniach w krótkim czasie okno dostaje przerwę." Style="{StaticResource ChoiceDetail}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBox Width="80" Text="{Binding PingPongLimit, UpdateSourceTrigger=LostFocus}" AutomationProperties.Name="Liczba przeniesień w serii" />
+                            <TextBlock Text="przeniesień" Style="{StaticResource UnitText}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <Border Style="{StaticResource ExpanderRowStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                            <TextBlock Text="Czas trwania serii" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="W jakim czasie liczyć powyższe przeniesienia." Style="{StaticResource ChoiceDetail}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBox Width="80" Text="{Binding PingPongWindowSeconds, UpdateSourceTrigger=LostFocus}" AutomationProperties.Name="Czas trwania serii w sekundach" />
+                            <TextBlock Text="s" Style="{StaticResource UnitText}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </Expander>
+    </StackPanel>
+</UserControl>

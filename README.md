@@ -1,4 +1,4 @@
-# SensorPanelGlue
+# SensorPanelPin
 
 Aplikacja dla Windows 11, która pilnuje, aby okno **SensorPanel** z AIDA64 zawsze znajdowało się
 na wybranym monitorze, a okna innych aplikacji, które pojawią się na tym monitorze, przenosi na
@@ -56,10 +56,10 @@ Wymagania do budowania: .NET 10 SDK. Do uruchamiania wersji opublikowanej: nic �
 środku.
 
 ```bash
-dotnet publish src/SensorPanelGlue/SensorPanelGlue.csproj -c Release -p:PublishSingleFile=true -p:SelfContained=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
+dotnet publish src/SensorPanelPin/SensorPanelPin.csproj -c Release -p:PublishSingleFile=true -p:SelfContained=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
 ```
 
-Efekt: `publish\SensorPanelGlue.exe` (62,6 MB, z runtime'em .NET w środku) oraz pięć bibliotek
+Efekt: `publish\SensorPanelPin.exe` (62,6 MB, z runtime'em .NET w środku) oraz pięć bibliotek
 natywnych WPF obok niego — razem 70,5 MB.
 
 **Celowo bez `IncludeNativeLibrariesForSelfExtract`.** Z tą flagą wszystko byłoby w jednym pliku,
@@ -73,15 +73,28 @@ Potem instalacja, w PowerShellu uruchomionym jako administrator:
 powershell -ExecutionPolicy Bypass -File scripts\Install.ps1
 ```
 
-Skrypt kopiuje build do `C:\Program Files\SensorPanelGlue`, ustawia administratorów jako właściciela,
+Skrypt kopiuje build do `C:\Program Files\SensorPanelPin`, ustawia administratorów jako właściciela,
 przywraca chronione uprawnienia dziedziczone z `Program Files`, a jeśli zadanie autostartu istnieje —
 przestawia je na zainstalowaną kopię i uruchamia. To jedyne miejsce, z którego program może
 startować z uprawnieniami administratora; patrz sekcja *Bezpieczeństwo*.
 
+### Przejście z SensorPanelGlue
+
+Do wersji 2.0 program nazywał się SensorPanelGlue. Przejście na nową nazwę nie wymaga ręcznej pracy:
+
+- `Install.ps1` zatrzymuje starą wersję, przenosi jej zadanie autostartu pod nazwę `SensorPanelPin`
+  (z tym samym wyzwalaczem i kontem) i usuwa `C:\Program Files\SensorPanelGlue`.
+- Przy pierwszym starcie SensorPanelPin przejmuje `%APPDATA%\SensorPanelGlue\config.json`. Stary
+  plik jest tylko czytany; folder zostaje razem z dawnymi logami i można go usunąć ręcznie.
+- Stary wpis autostartu w rejestrze (`HKCU\...\Run\SensorPanelGlue`) jest rozpoznawany jako bieżący
+  autostart i znika przy pierwszej zmianie trybu w ustawieniach.
+- Jeśli stara wersja jeszcze działa, nowa nie wystartuje obok niej, tylko poprosi o jej zamknięcie —
+  dwie kopie przestawiałyby te same okna.
+
 ### Pierwsze uruchomienie
 
 1. Uruchom AIDA64 i włącz SensorPanel.
-2. Uruchom `SensorPanelGlue.exe` — w zasobniku pojawi się ikona.
+2. Uruchom `SensorPanelPin.exe` — w zasobniku pojawi się ikona.
 3. Kliknij ikonę — otworzą się ustawienia na stronie **Ekrany**, z mapą Twoich monitorów.
 4. W karcie **Ekran SensorPanela** wybierz ekran, na którym ma być panel. **Identyfikuj** pokazuje na
    każdym monitorze jego numer z mapy.
@@ -118,7 +131,7 @@ AIDA64 prawie zawsze uruchamia się z podniesionymi uprawnieniami (potrzebuje ic
 czujników). Windows UIPI nie pozwala procesowi o niższym poziomie integralności wywołać
 `SetWindowPos` na oknie procesu o wyższym — wywołanie kończy się błędem `ERROR_ACCESS_DENIED (5)`.
 
-**W praktyce oznacza to, że SensorPanelGlue uruchomiony normalnie nie przesunie panelu AIDA64.**
+**W praktyce oznacza to, że SensorPanelPin uruchomiony normalnie nie przesunie panelu AIDA64.**
 
 Aplikacja wykrywa to od razu przy starcie (nieszkodliwym, „pustym" wywołaniem `SetWindowPos`, które
 niczego nie przesuwa) i zamiast milczeć: wypisuje ostrzeżenie w logu, pokazuje powiadomienie przy
@@ -137,16 +150,16 @@ kodu. Dlatego strona **Uruchamianie** ma trzy możliwości:
 |---|---|
 | **Nie uruchamiaj** | Usuwa oba wpisy |
 | **Uruchamiaj bez uprawnień administratora** | Wpis w `HKCU\...\Run`. Panel nie będzie pilnowany, jeśli AIDA64 działa jako administrator |
-| **Uruchamiaj z uprawnieniami administratora** | Zadanie `SensorPanelGlue` w Harmonogramie, `RunLevel = HighestAvailable`, wyzwalacz przy logowaniu z opóźnieniem 15 s. Startuje z uprawnieniami **bez monitu UAC przy logowaniu** |
+| **Uruchamiaj z uprawnieniami administratora** | Zadanie `SensorPanelPin` w Harmonogramie, `RunLevel = HighestAvailable`, wyzwalacz przy logowaniu z opóźnieniem 15 s. Startuje z uprawnieniami **bez monitu UAC przy logowaniu** |
 
 Sama AIDA64 uruchamia się identycznie — zadaniem `\AIDA64 AutoStart` — i z tego samego powodu.
-Opóźnienie 15 s wystarcza, żeby panel istniał, zanim SensorPanelGlue zacznie go szukać; gdyby
+Opóźnienie 15 s wystarcza, żeby panel istniał, zanim SensorPanelPin zacznie go szukać; gdyby
 AIDA64 startowała wolniej, aplikacja poczeka i złapie okno, gdy się pojawi.
 
 Zadanie jest tworzone i usuwane przez API COM Harmonogramu zadań, wewnątrz procesu — bez
 `schtasks.exe` i bez pliku tymczasowego. Utworzenie lub usunięcie zadania z uprawnieniami wymaga,
 żeby program sam działał z uprawnieniami, i jest **odrzucane, jeśli program leży w miejscu, które
-mogą zmieniać zwykli użytkownicy** (patrz niżej). Wpis zapamiętuje ścieżkę `SensorPanelGlue.exe`
+mogą zmieniać zwykli użytkownicy** (patrz niżej). Wpis zapamiętuje ścieżkę `SensorPanelPin.exe`
 (nigdy procesu-hosta, np. `dotnet.exe`); po przeniesieniu programu ustaw tryb ponownie albo
 uruchom skrypt instalacyjny, który przestawia zadanie sam.
 
@@ -197,7 +210,7 @@ WinEventHook (OUTOFCONTEXT)          zdarzenia systemowe            poll bezpiec
         |                                     |                              |
         +------------> LoopClock (jeden zegar, wpis do kolejki UI) <---------+
                                   |
-                             GlueService                strażnik w puli wątków:
+                             PinService                 strażnik w puli wątków:
                                   |                     „pętla nie odpowiada od N s"
                  +----------------+----------------+
                  v                                 v
@@ -247,7 +260,7 @@ Kilka decyzji, które mają znaczenie:
 
 ## Konfiguracja
 
-`%APPDATA%\SensorPanelGlue\config.json` — edytowalny ręcznie; zapisywany atomowo, przez losowy plik
+`%APPDATA%\SensorPanelPin\config.json` — edytowalny ręcznie; zapisywany atomowo, przez losowy plik
 tymczasowy i zweryfikowany uchwyt. Ręcznie wpisane `null` są czyszczone przy wczytaniu.
 
 | Klucz | Znaczenie | Domyślnie |
@@ -274,7 +287,7 @@ tymczasowy i zweryfikowany uchwyt. Ręcznie wpisane `null` są czyszczone przy w
 niej. Gdyby przestał, **SensorPanel → Zaawansowane → Pokaż okna AIDA64** wypisze wszystkie okna
 procesu i oznaczy to, które pasuje.
 
-Logi: `%APPDATA%\SensorPanelGlue\logs\sensorpanelglue.log` (rotacja 1 MB × 5 plików). Log zapisuje
+Logi: `%APPDATA%\SensorPanelPin\logs\sensorpanelpin.log` (rotacja 1 MB × 5 plików). Log zapisuje
 skrócone (60 znaków) tytuły okien, które program przenosi lub — przy szczegółowym logu — pomija.
 
 ---
@@ -282,14 +295,14 @@ skrócone (60 znaków) tytuły okien, które program przenosi lub — przy szcze
 ## Testy
 
 ```bash
-dotnet test tests/SensorPanelGlue.Tests/SensorPanelGlue.Tests.csproj
+dotnet test tests/SensorPanelPin.Tests/SensorPanelPin.Tests.csproj
 ```
 
-223 testy xUnit, bez potrzeby pulpitu: spójność układu monitorów (w tym incydent z monitorem
+226 testów xUnit, bez potrzeby pulpitu: spójność układu monitorów (w tym incydent z monitorem
 zgłoszonym w (0,0)), anty-ping-pong z przerwami (incydent ze Steamem), arytmetyka terminów zegara,
 odmowa zapisu przez junction i hardlink, kontrola ACL (plik w `%TEMP%` odrzucony, `dotnet.exe` w
-`Program Files` przyjęty), wzorce, konfiguracja, log, przełączniki środowiska uruchomieniowego (WPF nie
-zniesie trybu `InvariantGlobalization`: każdy szablon kontrolki rzuca wtedy `XamlParseException`).
+`Program Files` przyjęty), wzorce, konfiguracja, log, przejęcie ustawień spod starej nazwy,
+przełączniki środowiska uruchomieniowego (WPF nie zniesie trybu `InvariantGlobalization`: każdy szablon kontrolki rzuca wtedy `XamlParseException`).
 
 ### Pomiary na żywym sprzęcie
 
@@ -312,7 +325,7 @@ harmonogram i interfejs, a tych pomiarów jeszcze nie powtórzono.
 | Zużycie CPU w spoczynku (90 s) | **0,12% jednego rdzenia** |
 | Pamięć w spoczynku | 69 MB working set / 28 MB prywatnej |
 
-W wersji 2 sprawdzone: build bez ostrzeżeń, 223 testy, interfejs na zrzutach w trybie jasnym i
+W wersji 2 sprawdzone: build bez ostrzeżeń, 226 testów, interfejs na zrzutach w trybie jasnym i
 ciemnym na żywych danych z monitorów, nowy zegar w działaniu (puls co 5 minut z wersji z poprawkami
 bezpieczeństwa), zainstalowana kopia w `Program Files`: start bez błędów interfejsu, Notatnik
 przesunięty z ekranu panelu na główny w **185 ms**.
@@ -337,21 +350,21 @@ przesunięty z ekranu panelu na główny w **185 ms**.
 ## Struktura kodu
 
 ```
-src/SensorPanelGlue/
+src/SensorPanelPin/
   Program.cs              pojedyncza instancja, log, pętla WPF z motywem Fluent
   app.manifest            PerMonitorV2 DPI, asInvoker
   app.ico                 ikona (16-256 px), generowana z UI/IconArtwork.cs
   Interop/                P/Invoke: NativeMethods, DwmInterop, DisplayConfigInterop (CCD), FileInterop
   Monitors/               MonitorRegistry (stabilne ID, geometria, spójność układu), MonitorInfo
   Windows/                WindowQuery/WindowInfo, WindowFilter, WindowMover, PingPongGuard, Wildcard
-  Core/                   GlueService (silnik), LoopClock (zegar terminów), WinEventListener,
+  Core/                   PinService (silnik), LoopClock (zegar terminów), WinEventListener,
                           SystemEventWindow, Elevation, ServiceStatus
   Config/                 AppConfig, ConfigStore, AutoStart (API COM Harmonogramu), ExecutableTrust (ACL)
   Diagnostics/            Logger, SafeDirectory (zapis odporny na dowiązania)
   UI/                     SettingsWindow + Pages/ (strony), SettingsViewModel, MonitorMap (mapa),
                           TrayController (zasobnik), IdentifyWindow, DiagnosticsWindow,
                           Theme.xaml (przełącznik, karty, InfoBar, rozwijane karty), AppIcon, IconArtwork
-tests/SensorPanelGlue.Tests/   xUnit
+tests/SensorPanelPin.Tests/   xUnit
 scripts/Install.ps1            instalacja do Program Files i przestawienie zadania
 ```
 
