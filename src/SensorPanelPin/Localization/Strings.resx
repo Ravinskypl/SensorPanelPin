@@ -76,6 +76,9 @@
   <data name="StatusElevation" xml:space="preserve">
     <value>AIDA64 runs as administrator, so Windows does not allow moving the panel. Run SensorPanelPin as administrator.</value>
   </data>
+  <data name="StatusElevationNotInstalled" xml:space="preserve">
+    <value>AIDA64 runs as administrator, so Windows does not allow moving the panel. Install SensorPanelPin: it then starts with administrator rights at every logon.</value>
+  </data>
   <data name="RunAsAdministratorButton" xml:space="preserve">
     <value>Run as administrator</value>
   </data>
@@ -335,7 +338,7 @@
     <value>Burst duration in seconds</value>
   </data>
   <data name="LocationWarningFormat" xml:space="preserve">
-    <value>The program runs from a folder ordinary users can change, so it cannot start with administrator rights. Install it with Install.cmd from the release package (into C:\Program Files\SensorPanelPin) and turn this option on from the installed copy.
+    <value>The program runs from a folder ordinary users can change, so it cannot start with administrator rights. Install puts it in C:\Program Files\SensorPanelPin, where only administrators can change it.
 {0}</value>
   </data>
   <!-- Autostart -->
@@ -358,7 +361,7 @@
     <value>Refusing to create a task with administrator rights, because ordinary users can replace the program:
 {0}
 
-Install it into C:\Program Files\SensorPanelPin (Install.cmd from the release package) and turn this option on from that copy.</value>
+Install it first (the Install button above), then turn this option on in the installed copy.</value>
   </data>
   <data name="AutoStartTaskNotVisible" xml:space="preserve">
     <value>The task was reported as created, but it does not show up in Task Scheduler.</value>
@@ -511,5 +514,53 @@ Quit it from its tray icon&apos;s menu, then start SensorPanelPin again.</value>
 
 Details are in the log:
 {0}</value>
+  </data>
+  <!-- Install and uninstall -->
+  <data name="InstallButton" xml:space="preserve">
+    <value>Install</value>
+  </data>
+  <data name="TrayInstall" xml:space="preserve">
+    <value>Install SensorPanelPin…</value>
+  </data>
+  <data name="InstallNeedsAdministrator" xml:space="preserve">
+    <value>Installing and uninstalling need administrator rights. Start them from the SensorPanelPin settings, which ask for those rights.</value>
+  </data>
+  <data name="InstallDoneFormat" xml:space="preserve">
+    <value>SensorPanelPin is installed in {0} and starts with Windows, with administrator rights. It is running now; its icon is in the notification area.
+
+The downloaded folder is no longer needed.</value>
+  </data>
+  <data name="InstallFailedFormat" xml:space="preserve">
+    <value>SensorPanelPin could not be installed: {0}</value>
+  </data>
+  <data name="InstallUntrustedFormat" xml:space="preserve">
+    <value>The installed copy can be changed by ordinary users, so no task with administrator rights was created:
+{0}</value>
+  </data>
+  <data name="UninstallHeader" xml:space="preserve">
+    <value>Uninstall SensorPanelPin</value>
+  </data>
+  <data name="UninstallDescription" xml:space="preserve">
+    <value>Removes the program and its autostart entry and, if you choose, its settings and logs.</value>
+  </data>
+  <data name="UninstallButton" xml:space="preserve">
+    <value>Uninstall…</value>
+  </data>
+  <data name="UninstallAskSettings" xml:space="preserve">
+    <value>Also remove your settings and logs?
+
+Yes removes everything. No keeps the settings for a later installation.</value>
+  </data>
+  <data name="UninstallDone" xml:space="preserve">
+    <value>SensorPanelPin is uninstalled.</value>
+  </data>
+  <data name="UninstallDoneAfterRestart" xml:space="preserve">
+    <value>SensorPanelPin is uninstalled. A few files that were in use are removed at the next restart.</value>
+  </data>
+  <data name="UninstallFailedFormat" xml:space="preserve">
+    <value>SensorPanelPin could not be uninstalled: {0}</value>
+  </data>
+  <data name="OfferInstallInPlaceFormat" xml:space="preserve">
+    <value>Another copy of SensorPanelPin is already running. Install this copy (version {0}) in its place?</value>
   </data>
 </root>

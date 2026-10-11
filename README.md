@@ -32,20 +32,29 @@ documented user-mode Win32 APIs.
 
 1. Download `SensorPanelPin-<version>-win-x64.zip` from
    [Releases](https://github.com/Ravinskypl/SensorPanelPin/releases) and extract it anywhere.
-2. Double-click **`Install.cmd`** and approve the administrator prompt.
-3. Click the tray icon, and on the first page (**Screens**) pick the screen the SensorPanel
+2. Start **`SensorPanelPin.exe`**. Its icon appears in the notification area.
+3. Right-click the icon, choose **Install SensorPanelPin…** and approve the administrator prompt.
+   The settings window offers the same **Install** button.
+4. Click the tray icon, and on the first page (**Screens**) pick the screen the SensorPanel
    belongs on.
 
-`Install.cmd` copies the program to `C:\Program Files\SensorPanelPin`, creates a logon task that
-starts it with administrator rights, and starts it. Nothing needs to be installed first: the .NET
-runtime is inside the executable. The extracted folder is not needed afterwards.
+Installing copies the program to `C:\Program Files\SensorPanelPin`, creates a logon task that
+starts it with administrator rights, and starts the installed copy. The program does this itself,
+started again with `--install` and administrator rights: no script, shell or PowerShell takes part.
+Nothing needs to be installed first: the .NET runtime is inside the executable. The extracted
+folder is not needed afterwards.
+
+Release 2.0.0 installed through `Install.cmd`, a script that asked for rights through PowerShell
+and then ran `Install.ps1` with the execution policy bypassed. Antivirus behaviour engines
+(Bitdefender's Advanced Threat Defense among them) stop that pattern as malicious, and nothing got
+installed. 2.0.1 has no scripts.
 
 **SmartScreen.** The executable is not code-signed, so Windows may show "Windows protected your PC".
 Choose **More info → Run anyway**. Each release is built by GitHub Actions from the tagged commit,
 lists its SHA-256 checksum, and carries a provenance attestation you can check:
 
 ```bash
-gh attestation verify SensorPanelPin-2.0.0-win-x64.zip --repo Ravinskypl/SensorPanelPin
+gh attestation verify SensorPanelPin-2.0.1-win-x64.zip --repo Ravinskypl/SensorPanelPin
 ```
 
 **Why administrator rights.** AIDA64 runs as administrator to read its sensors, and Windows does not
@@ -59,9 +68,12 @@ administrator rights. It will then manage other windows but cannot move an eleva
 
 ### Uninstall
 
-Run `Uninstall.cmd` (from the ZIP, or from `C:\Program Files\SensorPanelPin`) and approve the
-prompt. It stops the program and removes its logon task, its registry autostart entry, its
-`Program Files` folder and its settings and logs. `Uninstall.ps1 -KeepSettings` keeps the settings.
+In the installed copy's settings, open **Startup** and choose **Uninstall…**, then answer whether
+to remove your settings and logs too. After the administrator prompt the program stops, removes
+its logon task, its registry autostart entry and its `Program Files` folder, and, if you chose so,
+`%APPDATA%\SensorPanelPin`. Files in use at that moment (the running uninstaller itself) are
+removed at the next restart. `SensorPanelPin.exe --uninstall [--keep-settings]`, run as
+administrator, does the same.
 
 ### First run
 
@@ -123,7 +135,7 @@ A `HKCU\...\Run` entry **cannot start a program elevated**; that is a Windows ru
 | Start without administrator rights | A `HKCU\...\Run` entry. The panel is not managed if AIDA64 runs as administrator |
 | Start with administrator rights | The `SensorPanelPin` scheduled task, `RunLevel = HighestAvailable`, logon trigger with a 15 s delay. Starts elevated **with no UAC prompt at logon** |
 
-`Install.cmd` sets up the third one. AIDA64 starts the same way, through its `\AIDA64 AutoStart`
+Installing sets up the third one. AIDA64 starts the same way, through its `\AIDA64 AutoStart`
 task, for the same reason. The 15 s delay lets the panel exist before SensorPanelPin looks for it;
 if AIDA64 is slower, the app waits and picks the window up when it appears.
 
@@ -160,7 +172,7 @@ runs or writes, has to be checked.
   `%APPDATA%`, which ordinary code can replace with a link (junctions and hardlinks need no
   privileges). The folder is checked for links, and every opened file must, through its handle,
   have exactly one link and lie where it should. If not, logging turns off (with a notification)
-  and settings are not saved. `Uninstall.ps1` refuses to delete through a link for the same reason.
+  and settings are not saved. Uninstalling refuses to delete through a link for the same reason.
 * **Content controlled by others.** Window titles are set by whichever program owns the window.
   Every line break in a log message is indented, so a title cannot forge a log entry; titles are
   read up to 512 characters and shortened to 60 in the log; pattern matching has a timeout.
@@ -262,8 +274,8 @@ skips.
 
 ### Coming from SensorPanelGlue
 
-Before 2.0 the program was called SensorPanelGlue. `Install.cmd` stops the old version, carries its
-logon task over under the new name and removes `C:\Program Files\SensorPanelGlue`. On its first
+Before 2.0 the program was called SensorPanelGlue. Installing stops the old version, replaces its
+logon task with one under the new name and removes `C:\Program Files\SensorPanelGlue`. On its first
 start SensorPanelPin takes over `%APPDATA%\SensorPanelGlue\config.json` (only reading it). A running
 old version stops the new one from starting beside it, since two copies would fight over the same
 windows.
@@ -287,7 +299,7 @@ the install scripts into `artifacts\SensorPanelPin-<version>-win-x64.zip`, with 
 The release workflow runs the same script when a `v*` tag is pushed. The package is the 62 MB
 executable plus five native WPF libraries, 70 MB in all.
 
-To install a local build, run `Install.cmd` from the folder inside `artifacts`.
+To install a local build, start `SensorPanelPin.exe` from the folder inside `artifacts` and choose **Install**.
 
 ### Stack
 
@@ -305,11 +317,11 @@ WinForms analyzer that expects the API route (`WFAC010`, `WFO0003` in .NET 10) i
 
 ### Tests
 
-392 xUnit tests that need no desktop: monitor layout consistency (including an incident with a
+416 xUnit tests that need no desktop: monitor layout consistency (including an incident with a
 monitor reported at (0,0)), anti-ping-pong with breaks (an incident with Steam), clock deadline
 arithmetic, refusal to write through junctions and hardlinks, ACL checks (a file in `%TEMP%`
 rejected, `dotnet.exe` in `Program Files` accepted), wildcards, configuration, logging, taking over
-settings from the old name, runtime switches (WPF cannot run with `InvariantGlobalization`: every
+settings from the old name, what the installer copies, runtime switches (WPF cannot run with `InvariantGlobalization`: every
 control template then throws `XamlParseException`), and the two interface languages: every text
 exists in both with the same placeholders, and no Polish text is left in the code.
 
@@ -362,13 +374,14 @@ src/SensorPanelPin/
   Windows/                WindowQuery/WindowInfo, WindowFilter, WindowMover, PingPongGuard, Wildcard
   Core/                   PinService (engine), LoopClock (deadline clock), WinEventListener,
                           SystemEventWindow, Elevation, ServiceStatus
-  Config/                 AppConfig, ConfigStore, AutoStart (Task Scheduler COM API), ExecutableTrust (ACL)
+  Config/                 AppConfig, ConfigStore, AutoStart (Task Scheduler COM API), ExecutableTrust (ACL),
+                          Installer (--install / --uninstall)
   Diagnostics/            Logger, SafeDirectory (link-resistant writes)
   Localization/           Strings.resx (English), Strings.pl.resx (Polish), Strings (typed access)
   UI/                     SettingsWindow + Pages/, SettingsViewModel, MonitorMap, TrayController,
                           IdentifyWindow, DiagnosticsWindow, Theme.xaml, AppIcon, IconArtwork
 tests/SensorPanelPin.Tests/   xUnit
-scripts/                  Install / Uninstall (.cmd + .ps1), Build-Release.ps1, README-release.txt
+scripts/                  Build-Release.ps1, README-release.txt
 .github/workflows/        CI (tests on every push) and Release (package on a v* tag)
 ```
 

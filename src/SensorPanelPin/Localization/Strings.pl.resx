@@ -76,6 +76,9 @@
   <data name="StatusElevation" xml:space="preserve">
     <value>AIDA64 działa jako administrator, więc Windows nie pozwala przesunąć panelu. Uruchom SensorPanelPin jako administrator.</value>
   </data>
+  <data name="StatusElevationNotInstalled" xml:space="preserve">
+    <value>AIDA64 działa jako administrator, więc Windows nie pozwala przesunąć panelu. Zainstaluj SensorPanelPin: będzie wtedy startował z uprawnieniami administratora przy każdym logowaniu.</value>
+  </data>
   <data name="RunAsAdministratorButton" xml:space="preserve">
     <value>Uruchom jako administrator</value>
   </data>
@@ -335,7 +338,7 @@
     <value>Czas trwania serii w sekundach</value>
   </data>
   <data name="LocationWarningFormat" xml:space="preserve">
-    <value>Program działa z folderu, który mogą zmieniać zwykli użytkownicy, więc nie może startować z uprawnieniami administratora. Zainstaluj go przez Install.cmd z paczki wydania (do C:\Program Files\SensorPanelPin) i włącz ten tryb z zainstalowanej kopii.
+    <value>Program działa z folderu, który mogą zmieniać zwykli użytkownicy, więc nie może startować z uprawnieniami administratora. Instalacja przeniesie go do C:\Program Files\SensorPanelPin, który mogą zmieniać tylko administratorzy.
 {0}</value>
   </data>
   <!-- Autostart -->
@@ -358,7 +361,7 @@
     <value>Odmawiam utworzenia zadania z uprawnieniami administratora, bo program mogą podmienić zwykli użytkownicy:
 {0}
 
-Zainstaluj go w C:\Program Files\SensorPanelPin (Install.cmd z paczki wydania) i włącz ten tryb z tamtej kopii.</value>
+Najpierw go zainstaluj (przycisk Zainstaluj powyżej), a potem włącz ten tryb w zainstalowanej kopii.</value>
   </data>
   <data name="AutoStartTaskNotVisible" xml:space="preserve">
     <value>Zadanie zostało zgłoszone jako utworzone, ale nie widać go w Harmonogramie zadań.</value>
@@ -511,5 +514,53 @@ Zamknij ją z menu jej ikony w zasobniku i uruchom SensorPanelPin ponownie.</val
 
 Szczegóły w logu:
 {0}</value>
+  </data>
+  <!-- Install and uninstall -->
+  <data name="InstallButton" xml:space="preserve">
+    <value>Zainstaluj</value>
+  </data>
+  <data name="TrayInstall" xml:space="preserve">
+    <value>Zainstaluj SensorPanelPin…</value>
+  </data>
+  <data name="InstallNeedsAdministrator" xml:space="preserve">
+    <value>Instalacja i odinstalowanie wymagają uprawnień administratora. Uruchom je z ustawień SensorPanelPin, które o te uprawnienia poproszą.</value>
+  </data>
+  <data name="InstallDoneFormat" xml:space="preserve">
+    <value>SensorPanelPin jest zainstalowany w {0} i startuje razem z Windows, z uprawnieniami administratora. Już działa — ikona jest w zasobniku.
+
+Pobrany folder nie jest już potrzebny.</value>
+  </data>
+  <data name="InstallFailedFormat" xml:space="preserve">
+    <value>Nie udało się zainstalować SensorPanelPin: {0}</value>
+  </data>
+  <data name="InstallUntrustedFormat" xml:space="preserve">
+    <value>Zainstalowaną kopię mogą zmieniać zwykli użytkownicy, więc nie utworzono zadania z uprawnieniami administratora:
+{0}</value>
+  </data>
+  <data name="UninstallHeader" xml:space="preserve">
+    <value>Odinstaluj SensorPanelPin</value>
+  </data>
+  <data name="UninstallDescription" xml:space="preserve">
+    <value>Usuwa program i jego autostart, a jeśli wybierzesz, także ustawienia i logi.</value>
+  </data>
+  <data name="UninstallButton" xml:space="preserve">
+    <value>Odinstaluj…</value>
+  </data>
+  <data name="UninstallAskSettings" xml:space="preserve">
+    <value>Usunąć też ustawienia i logi?
+
+Tak usuwa wszystko. Nie zachowuje ustawienia na wypadek ponownej instalacji.</value>
+  </data>
+  <data name="UninstallDone" xml:space="preserve">
+    <value>SensorPanelPin został odinstalowany.</value>
+  </data>
+  <data name="UninstallDoneAfterRestart" xml:space="preserve">
+    <value>SensorPanelPin został odinstalowany. Kilka używanych plików zniknie po ponownym uruchomieniu komputera.</value>
+  </data>
+  <data name="UninstallFailedFormat" xml:space="preserve">
+    <value>Nie udało się odinstalować SensorPanelPin: {0}</value>
+  </data>
+  <data name="OfferInstallInPlaceFormat" xml:space="preserve">
+    <value>Inna kopia SensorPanelPin już działa. Zainstalować tę kopię (wersja {0}) w jej miejsce?</value>
   </data>
 </root>

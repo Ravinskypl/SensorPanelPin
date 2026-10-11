@@ -56,6 +56,13 @@ public sealed class TrayController : IDisposable
         _menu.Items.Add(open);
         _menu.Items.Add(fix);
         _menu.Items.Add(_pauseItem);
+        if (!Installer.IsInstalledCopy)
+        {
+            var install = new MenuItem { Header = Strings.TrayInstall };
+            install.Click += (_, _) => Install();
+            _menu.Items.Add(install);
+        }
+
         if (!Elevation.IsElevated())
         {
             var elevate = new MenuItem { Header = Strings.TrayRestartElevated };
@@ -124,6 +131,8 @@ public sealed class TrayController : IDisposable
         var model = new SettingsViewModel(_service, _store, _log);
         model.IdentifyRequested += (_, _) => IdentifyWindow.ShowOnAll(_service.Monitors.Monitors);
         model.RestartElevatedRequested += (_, _) => RestartElevated();
+        model.InstallRequested += (_, _) => Install();
+        model.UninstallRequested += (_, _) => Uninstall();
         model.DiagnosticsRequested += (_, rule) =>
         {
             var report = _service.RunDiagnostics(rule);
@@ -161,6 +170,41 @@ public sealed class TrayController : IDisposable
     private void RestartElevated()
     {
         if (Elevation.TryRestartElevated(_log, out var message))
+        {
+            Exit();
+            return;
+        }
+
+        if (message.Length > 0)
+        {
+            _tray.ShowBalloonTip(8000, "SensorPanelPin", message, Forms.ToolTipIcon.Warning);
+        }
+    }
+
+    /// <summary>
+    /// Hands over to this executable started again with administrator rights and the install
+    /// argument, then closes, so the installed copy can take the single-instance lock and the files
+    /// are free to be replaced.
+    /// </summary>
+    private void Install() => StartInstaller(Installer.InstallArgument);
+
+    private void Uninstall()
+    {
+        var answer = MessageBox.Show(Strings.UninstallAskSettings, "SensorPanelPin",
+            MessageBoxButton.YesNoCancel, MessageBoxImage.Question, MessageBoxResult.Cancel);
+        if (answer == MessageBoxResult.Cancel)
+        {
+            return;
+        }
+
+        StartInstaller(answer == MessageBoxResult.Yes
+            ? Installer.UninstallArgument
+            : Installer.UninstallArgument + " " + Installer.KeepSettingsArgument);
+    }
+
+    private void StartInstaller(string arguments)
+    {
+        if (Elevation.TryStartElevated(arguments, _log, out var message))
         {
             Exit();
             return;

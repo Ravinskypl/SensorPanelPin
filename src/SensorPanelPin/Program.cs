@@ -18,8 +18,27 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        // Installing and uninstalling run as a separate, elevated start of this same executable. They
+        // must not take the single-instance mutex: the copy that launched them may still hold it.
+        if (Installer.IsInstallerRun(args))
+        {
+            Environment.ExitCode = Installer.Run(args);
+            return;
+        }
+
         using var mutex = new Mutex(initiallyOwned: true, MutexName, out var isFirstInstance);
-        if (!isFirstInstance && !WaitForPreviousInstance(mutex, args))
+        var otherRunning = !isFirstInstance && !WaitForPreviousInstance(mutex, args);
+        var legacyRunning = !otherRunning && LegacyInstanceRunning();
+
+        // A downloaded new version started while the installed one runs: without this offer it could
+        // only say "already running", and there would be no way to update short of uninstalling.
+        if ((otherRunning || legacyRunning) && !Installer.IsInstalledCopy)
+        {
+            OfferInstallInPlace();
+            return;
+        }
+
+        if (otherRunning)
         {
             MessageBox.Show(
                 Strings.AlreadyRunning,
@@ -29,7 +48,7 @@ internal static class Program
             return;
         }
 
-        if (LegacyInstanceRunning())
+        if (legacyRunning)
         {
             MessageBox.Show(
                 Strings.LegacyRunning,
@@ -100,6 +119,26 @@ internal static class Program
         GC.KeepAlive(mutex);
     }
 
+    private static void OfferInstallInPlace()
+    {
+        var version = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "?";
+        var answer = MessageBox.Show(
+            Strings.OfferInstallInPlaceFormat(version),
+            "SensorPanelPin",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (answer != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        // The installer stops the running copy itself, whichever name it runs under.
+        using var log = new Logger(Path.Combine(ConfigStore.DefaultAppDataDirectory, "logs"));
+        if (!Elevation.TryStartElevated(Installer.InstallArgument, log, out var message) && message.Length > 0)
+        {
+            MessageBox.Show(message, "SensorPanelPin", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
     /// <summary>
     /// The renamed program does not share a mutex with its old name, so without this check an old
     /// SensorPanelGlue and a new SensorPanelPin would both enforce the layout and fight over windows.

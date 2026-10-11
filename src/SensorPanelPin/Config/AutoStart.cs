@@ -130,6 +130,74 @@ public static class AutoStart
         }
     }
 
+    /// <summary>
+    /// For the installer, which runs elevated from the downloaded copy: registers the logon task for
+    /// the copy it has just installed, <paramref name="exe"/>, rather than for the running process.
+    /// </summary>
+    internal static bool EnableElevatedTaskFor(string exe, Logger log, out string message)
+    {
+        if (!CreateScheduledTask(exe, log, out message))
+        {
+            return false;
+        }
+
+        RemoveRunKey(log);
+        return true;
+    }
+
+    /// <summary>Removes every autostart entry, under the current name and the old one.</summary>
+    internal static bool DisableAll(Logger log, out string message)
+    {
+        if (!RemoveScheduledTask(log, out message))
+        {
+            return false;
+        }
+
+        RemoveRunKey(log);
+        return true;
+    }
+
+    /// <summary>
+    /// Starts the logon task now. It runs as the account it is registered for, with its rights, which
+    /// an elevated installer cannot reproduce by starting the program itself.
+    /// </summary>
+    internal static bool RunTaskNow(Logger log)
+    {
+        try
+        {
+            dynamic folder = RootFolder();
+            folder.GetTask(TaskName).Run(null);
+            log.Info("Started the logon task.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            log.Error("Could not start the logon task.", ex);
+            return false;
+        }
+    }
+
+    /// <summary>Ends whatever the logon tasks started, under the current name and the old one.</summary>
+    internal static void StopTasks(Logger log)
+    {
+        foreach (var name in new[] { TaskName, LegacyTaskName })
+        {
+            if (!TaskExists(name))
+            {
+                continue;
+            }
+
+            try
+            {
+                dynamic folder = RootFolder();
+                folder.GetTask(name).Stop(0);
+            }
+            catch (Exception ex)
+            {
+                log.Warn($"Could not stop the logon task {name}: {ex.Message}");
+            }
+        }
+    }
     // ------------------------------------------------------------ registry
 
     private static bool RunKeyExists()
@@ -342,7 +410,8 @@ public static class AutoStart
 
     private static string BuildTaskXml(string exe)
     {
-        var user = WindowsIdentity.GetCurrent().Name;
+        // The signed-in user, not necessarily the account this elevated process runs as.
+        var user = Elevation.InteractiveUserName();
         var workingDirectory = Path.GetDirectoryName(exe) ?? string.Empty;
 
         return $"""

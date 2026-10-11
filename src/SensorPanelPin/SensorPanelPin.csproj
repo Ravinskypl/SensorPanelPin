@@ -40,7 +40,7 @@
     <!-- English is built in; Polish ships as a satellite and is picked when Windows is in Polish. -->
     <SatelliteResourceLanguages>en;pl</SatelliteResourceLanguages>
     <NeutralLanguage>en</NeutralLanguage>
-    <Version>2.0.0</Version>
+    <Version>2.0.1</Version>
     <Product>SensorPanelPin</Product>
   </PropertyGroup>
 

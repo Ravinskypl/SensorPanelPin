@@ -49,6 +49,7 @@ public static class Strings
     public static string StatusInPlaceFormat(object? screen) => Format(nameof(StatusInPlaceFormat), screen);
     public static string StatusReturning => Get();
     public static string StatusElevation => Get();
+    public static string StatusElevationNotInstalled => Get();
     public static string RunAsAdministratorButton => Get();
     public static string StatusChooseScreen => Get();
     public static string StatusWaitingForScreenFormat(object? reason) => Format(nameof(StatusWaitingForScreenFormat), reason);
@@ -208,4 +209,20 @@ public static class Strings
     public static string AlreadyRunning => Get();
     public static string LegacyRunning => Get();
     public static string FatalErrorFormat(object? logPath) => Format(nameof(FatalErrorFormat), logPath);
+
+    // ------------------------------------------------------------------ Install and uninstall
+    public static string InstallButton => Get();
+    public static string TrayInstall => Get();
+    public static string InstallNeedsAdministrator => Get();
+    public static string InstallDoneFormat(object? folder) => Format(nameof(InstallDoneFormat), folder);
+    public static string InstallFailedFormat(object? reason) => Format(nameof(InstallFailedFormat), reason);
+    public static string InstallUntrustedFormat(object? reason) => Format(nameof(InstallUntrustedFormat), reason);
+    public static string UninstallHeader => Get();
+    public static string UninstallDescription => Get();
+    public static string UninstallButton => Get();
+    public static string UninstallAskSettings => Get();
+    public static string UninstallDone => Get();
+    public static string UninstallDoneAfterRestart => Get();
+    public static string UninstallFailedFormat(object? reason) => Format(nameof(UninstallFailedFormat), reason);
+    public static string OfferInstallInPlaceFormat(object? version) => Format(nameof(OfferInstallInPlaceFormat), version);
 }
