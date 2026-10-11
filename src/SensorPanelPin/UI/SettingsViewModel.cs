@@ -88,8 +88,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         if (!ExecutableTrust.IsProtected(exe, out var reason))
         {
             LocationWarning = "Program działa z folderu, który mogą zmieniać zwykli użytkownicy, więc nie może "
-                              + "startować z uprawnieniami administratora. Zainstaluj go skryptem "
-                              + @"scripts\Install.ps1 (do C:\Program Files\SensorPanelPin) i włącz ten tryb "
+                              + "startować z uprawnieniami administratora. Zainstaluj go przez "
+                              + @"Install.cmd z paczki wydania (do C:\Program Files\SensorPanelPin) i włącz ten tryb "
                               + "z zainstalowanej kopii." + Environment.NewLine + reason;
         }
 

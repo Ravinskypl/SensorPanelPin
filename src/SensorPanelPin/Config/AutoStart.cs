@@ -243,7 +243,7 @@ public static class AutoStart
             message = "Odmawiam utworzenia zadania z uprawnieniami administratora, bo program mogą "
                       + "podmienić zwykli użytkownicy:" + Environment.NewLine + reason
                       + Environment.NewLine + Environment.NewLine
-                      + @"Zainstaluj go w C:\Program Files\SensorPanelPin (skrypt scripts\Install.ps1) "
+                      + @"Zainstaluj go w C:\Program Files\SensorPanelPin (Install.cmd z paczki wydania) "
                       + "i włącz ten tryb z tamtej kopii.";
             log.Warn(message);
             return false;
